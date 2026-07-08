@@ -1,0 +1,108 @@
+"""Reusable discovery core helpers."""
+
+from ruleatlas_discovery.constants import (
+    BUILTIN_ID_PREFIX,
+    EMPTY_PATTERN,
+    FILE_NODE_ID_PREFIX,
+    NO_EXTENSION,
+    NO_EXTENSION_FILE_TYPE,
+    UNKNOWN_CLASSIFICATION,
+    UNKNOWN_LANGUAGE,
+    UNKNOWN_LANGUAGE_KEY,
+    BucketHint,
+    CommentStyle,
+    FileKind,
+    MappingSource,
+    MatchType,
+    NodeKind,
+)
+from ruleatlas_discovery.directory_tree import build_directory_tree, extension_from_path
+from ruleatlas_discovery.file_types import (
+    FileTypeResolver,
+    classify_file_type,
+    get_default_file_type_resolver,
+    reset_default_file_type_resolver,
+    unknown_resolved_file_type,
+)
+from ruleatlas_discovery.globbing import (
+    apply_discovery_scope,
+    matches_any_glob,
+    should_include_path,
+)
+from ruleatlas_discovery.line_counts import (
+    aggregate_line_counts,
+    aggregate_line_counts_by_file_type,
+    unmapped_extension_counts,
+)
+from ruleatlas_discovery.metrics import build_inventory_metrics
+from ruleatlas_discovery.models import (
+    DirectoryNode,
+    DiscoveryFile,
+    DiscoveryScope,
+    FileTypeMapping,
+    FileTypeSummary,
+    InventoryMetrics,
+    LineCountSummary,
+    ResolvedFileType,
+)
+from ruleatlas_discovery.serialization import (
+    directory_node_to_dict,
+    discovery_file_from_dict,
+    discovery_file_to_dict,
+    discovery_scope_to_dict,
+    file_type_mapping_to_dict,
+    file_type_summary_to_dict,
+    inventory_metrics_to_dict,
+    line_count_summary_to_dict,
+    resolved_file_type_to_dict,
+)
+from ruleatlas_discovery.version import __version__
+
+__all__ = [
+    "__version__",
+    "BUILTIN_ID_PREFIX",
+    "EMPTY_PATTERN",
+    "FILE_NODE_ID_PREFIX",
+    "NO_EXTENSION",
+    "NO_EXTENSION_FILE_TYPE",
+    "UNKNOWN_CLASSIFICATION",
+    "UNKNOWN_LANGUAGE",
+    "UNKNOWN_LANGUAGE_KEY",
+    "BucketHint",
+    "CommentStyle",
+    "DirectoryNode",
+    "DiscoveryFile",
+    "DiscoveryScope",
+    "FileKind",
+    "FileTypeMapping",
+    "FileTypeResolver",
+    "FileTypeSummary",
+    "InventoryMetrics",
+    "LineCountSummary",
+    "MappingSource",
+    "MatchType",
+    "NodeKind",
+    "ResolvedFileType",
+    "aggregate_line_counts",
+    "aggregate_line_counts_by_file_type",
+    "apply_discovery_scope",
+    "build_directory_tree",
+    "build_inventory_metrics",
+    "classify_file_type",
+    "directory_node_to_dict",
+    "discovery_file_from_dict",
+    "discovery_file_to_dict",
+    "discovery_scope_to_dict",
+    "extension_from_path",
+    "file_type_mapping_to_dict",
+    "file_type_summary_to_dict",
+    "get_default_file_type_resolver",
+    "inventory_metrics_to_dict",
+    "line_count_summary_to_dict",
+    "matches_any_glob",
+    "reset_default_file_type_resolver",
+    "resolved_file_type_to_dict",
+    "should_include_path",
+    "unknown_resolved_file_type",
+    "unmapped_extension_counts",
+]
