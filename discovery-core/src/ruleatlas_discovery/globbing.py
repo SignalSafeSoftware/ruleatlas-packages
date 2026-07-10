@@ -40,8 +40,4 @@ def should_include_path(
 
 
 def apply_discovery_scope(files: list[DiscoveryFile], scope: DiscoveryScope) -> list[DiscoveryFile]:
-    return [
-        row
-        for row in files
-        if should_include_path(row.path, scope.include_globs, scope.exclude_globs)
-    ]
+    return [row for row in files if should_include_path(row.path, scope.include_globs, scope.exclude_globs)]

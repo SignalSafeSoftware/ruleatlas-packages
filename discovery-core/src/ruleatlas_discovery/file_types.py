@@ -42,17 +42,16 @@ def _glob_matches(pattern: str, path: str, basename: str) -> bool:
                 continue
             if name == exact or name.lower() == exact.lower():
                 return True
-            if name.startswith(f"{root}.") or name.lower().startswith(f"{root.lower()}."):
-                if not after or name.endswith(after) or name.lower().endswith(after.lower()):
-                    return True
+            if (name.startswith(f"{root}.") or name.lower().startswith(f"{root.lower()}.")) and (
+                not after or name.endswith(after) or name.lower().endswith(after.lower())
+            ):
+                return True
         return False
 
     if fnmatch.fnmatch(path, pattern) or fnmatch.fnmatch(basename, pattern):
         return True
     lower_pattern = pattern.lower()
-    return fnmatch.fnmatch(path.lower(), lower_pattern) or fnmatch.fnmatch(
-        basename.lower(), lower_pattern
-    )
+    return fnmatch.fnmatch(path.lower(), lower_pattern) or fnmatch.fnmatch(basename.lower(), lower_pattern)
 
 
 def _match_score(entry: FileTypeMapping, path: str, basename: str, suffix: str) -> int | None:

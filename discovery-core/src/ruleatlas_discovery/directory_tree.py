@@ -69,7 +69,9 @@ def _file_to_node(row: DiscoveryFile, *, name: str, depth: int) -> DirectoryNode
 
 
 def _finalize_folder(folder: _MutableFolder) -> DirectoryNode:
-    child_folder_nodes = [_finalize_folder(child) for child in sorted(folder.child_folders.values(), key=lambda item: item.name.lower())]
+    child_folder_nodes = [
+        _finalize_folder(child) for child in sorted(folder.child_folders.values(), key=lambda item: item.name.lower())
+    ]
     file_nodes = [
         _file_to_node(
             row,
