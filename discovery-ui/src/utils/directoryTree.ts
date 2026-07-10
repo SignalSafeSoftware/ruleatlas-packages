@@ -431,7 +431,7 @@ function nodeSearchValues(node: DirectoryTreeNode): string[] {
 export function nodeMatchesFilter(node: DirectoryTreeNode, query: string): boolean {
   const q = query.trim().toLowerCase();
   if (!q) return true;
-  return nodeSearchValues(node).some((value) => value && value.toLowerCase().includes(q));
+  return nodeSearchValues(node).some((value) => value?.toLowerCase().includes(q));
 }
 
 export function collectMatchingPaths(nodes: DirectoryTreeNode[], query: string): Set<string> {
