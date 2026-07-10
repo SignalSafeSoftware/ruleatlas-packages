@@ -79,10 +79,10 @@ def _match_score(entry: FileTypeMapping, path: str, basename: str, suffix: str) 
 def _entry_to_resolved(entry: FileTypeMapping, path: str) -> ResolvedFileType:
     file_path = Path(path.replace("\\", "/"))
     suffix = file_path.suffix.lower()
-    if entry.match_type == MatchType.FILENAME:
+    if entry.match_type == MatchType.FILENAME or not suffix:
         extension = NO_EXTENSION
         file_type = entry.display_type
-    elif suffix:
+    else:
         extension = entry.normalized_extension or suffix
         # Glob mappings group by semantic display_type (Docker Compose, YAML, etc.).
         # normalized_extension only consolidates the extension column (.yml -> .yaml).
@@ -94,9 +94,6 @@ def _entry_to_resolved(entry: FileTypeMapping, path: str) -> ResolvedFileType:
             file_type = entry.display_type
         else:
             file_type = suffix
-    else:
-        extension = NO_EXTENSION
-        file_type = entry.display_type
     return ResolvedFileType(
         language=entry.language,
         language_key=entry.language_key,

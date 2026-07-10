@@ -17,7 +17,7 @@ export function FileTypesTable({
   onQuickFilterChange,
   renderLanguageCell,
   renderInfoCell,
-}: FileTypesTableProps): React.ReactElement {
+}: Readonly<FileTypesTableProps>): React.ReactElement {
   const query = quickFilter.trim().toLowerCase();
   const filtered = query
     ? rows.filter((row) =>

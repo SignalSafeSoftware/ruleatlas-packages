@@ -260,7 +260,7 @@ function classificationSortValue(value: string): string {
 
 export function directoryNodeKindLabel(node: DirectoryTreeNode): string {
   if (node.kind !== 'file') return 'Folder';
-  const kind = node.fileKind?.trim();
+  const kind = node.fileKind.trim();
   if (!kind || kind === '—') return '—';
   return humanizeToken(kind);
 }
@@ -402,7 +402,9 @@ export function buildDirectoryTree(files: DiscoveryInventoryFile[]): DirectoryTr
       currentMap = folder.childFolders;
     }
 
-    folder?.files.push(normalized);
+    if (folder) {
+      folder.files.push(normalized);
+    }
   }
 
   const roots = [...rootFolders.values()].map(finalizeFolder);

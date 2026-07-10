@@ -24,33 +24,32 @@ export function buildDiscoveryFileRowActions(
     },
   ];
 
-  items.push(
-    ...(pathsDiffer
-      ? [
-          {
-            id: 'copy-display-path',
-            label: 'Copy display path',
-            icon: 'bi-clipboard',
-            onClick: () => actions.onCopyDisplayPath(file.displayPath),
-          },
-          {
-            id: 'copy-raw-path',
-            label: 'Copy raw path',
-            icon: 'bi-clipboard2',
-            onClick: () => actions.onCopyRawPath(file.rawPath),
-          },
-        ]
-      : [
-          {
-            id: 'copy-path',
-            label: 'Copy path',
-            icon: 'bi-clipboard',
-            onClick: () => actions.onCopyRawPath(file.rawPath),
-          },
-        ]),
-  );
+  const copyActions: RowActionItem[] = pathsDiffer
+    ? [
+        {
+          id: 'copy-display-path',
+          label: 'Copy display path',
+          icon: 'bi-clipboard',
+          onClick: () => actions.onCopyDisplayPath(file.displayPath),
+        },
+        {
+          id: 'copy-raw-path',
+          label: 'Copy raw path',
+          icon: 'bi-clipboard2',
+          onClick: () => actions.onCopyRawPath(file.rawPath),
+        },
+      ]
+    : [
+        {
+          id: 'copy-path',
+          label: 'Copy path',
+          icon: 'bi-clipboard',
+          onClick: () => actions.onCopyRawPath(file.rawPath),
+        },
+      ];
 
   items.push(
+    ...copyActions,
     {
       id: 'line-context',
       label: 'Open Line Context',

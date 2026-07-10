@@ -35,7 +35,7 @@ export type LineCountByFileTypeTableProps<T extends Record<string, unknown>> = {
 };
 
 export function LineCountByFileTypeTable<T extends Record<string, unknown>>(
-  props: LineCountByFileTypeTableProps<T>,
+  props: Readonly<LineCountByFileTypeTableProps<T>>,
 ): React.ReactElement {
   return <DiscoveryMetricsTable {...props} />;
 }

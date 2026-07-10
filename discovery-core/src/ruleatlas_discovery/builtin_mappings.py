@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from ruleatlas_discovery.constants import (
     NO_EXTENSION,
+    PYTHON_TYPING_MARKER,
     UNKNOWN_LANGUAGE_KEY,
     BucketHint,
     CommentStyle,
@@ -254,9 +255,9 @@ def built_in_file_type_mappings() -> list[FileTypeMapping]:
         ),
         _filename(
             "py.typed",
-            language="Python typing marker",
+            language=PYTHON_TYPING_MARKER,
             language_key="python",
-            display_type="Python typing marker",
+            display_type=PYTHON_TYPING_MARKER,
             file_kind=FileKind.CONFIG,
             bucket=BucketHint.CONFIG,
             comment_style=CommentStyle.NONE,
@@ -644,7 +645,7 @@ def built_in_file_type_mappings() -> list[FileTypeMapping]:
         ),
         _ext(
             ".typed",
-            language="Python typing marker",
+            language=PYTHON_TYPING_MARKER,
             language_key="python",
             display_type="Typing marker",
             file_kind=FileKind.CONFIG,

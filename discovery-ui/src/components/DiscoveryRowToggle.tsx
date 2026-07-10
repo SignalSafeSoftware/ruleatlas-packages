@@ -10,7 +10,7 @@ export function DiscoveryRowToggle({
   onToggle,
   label,
   testId,
-}: DiscoveryRowToggleProps): React.ReactElement {
+}: Readonly<DiscoveryRowToggleProps>): React.ReactElement {
   return (
     <button
       type="button"
