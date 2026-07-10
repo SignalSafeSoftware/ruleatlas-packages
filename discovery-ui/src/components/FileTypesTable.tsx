@@ -1,7 +1,7 @@
 import { humanizeToken } from '../utils/humanizeToken';
-import type { FileTypeMappingRow, FileTypesTableProps } from '../types/discovery';
+import type { FileTypesTableProps } from '../types/discovery';
 
-export function FileTypeBadge({ language, displayType }: { language: string; displayType?: string }): React.ReactElement {
+export function FileTypeBadge({ language, displayType }: Readonly<{ language: string; displayType?: string }>): React.ReactElement {
   return (
     <span className="badge text-bg-secondary" title={displayType ?? language}>
       {language}

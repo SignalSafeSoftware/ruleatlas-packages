@@ -1,10 +1,5 @@
 import { useMemo, useState } from 'react';
 import type { DiscoveryInventoryFile, DirectoryExplorerActions, DirectoryExplorerRenderers } from '../types/discovery';
-
-import type { RowActionItem } from '../types/actions';
-
-
-
 import { formatInteger } from '../utils/numberFormat';
 import { formatBytes } from '../utils/formatBytes';
 import {
@@ -13,19 +8,24 @@ import {
   computeDirectoryExplorerTotals,
   sumDirectoryExplorerSubfoldersFooter,
   DEFAULT_DIRECTORY_SORT,
-  directoryNodeKindLabel,
   flattenVisibleTree,
   flattenLazyVisibleTree,
-  folderRawPath,
   sortDirectoryTree,
   topLevelFolderIds,
   type DirectorySortColumnId,
   type DirectorySortDirection,
   type FlatDirectoryRow,
 } from '../utils/directoryTree';
-import { buildDiscoveryFileRowActions } from '../utils/discoveryFileRowActions';
+import {
+  directoryExplorerDescription,
+  directorySortAriaValue,
+  fireAndForget,
+} from '../utils/directoryExplorerHelpers';
+import { DirectoryExplorerRow } from './DirectoryExplorerRow';
 
-import { DiscoveryRowToggle, DiscoveryRowToggleSpacer } from './DiscoveryRowToggle';
+function formatCount(value: number): string {
+  return formatInteger(value);
+}
 
 type DirectoryColumn = {
   id: DirectorySortColumnId | 'actions';
@@ -55,51 +55,6 @@ const DIRECTORY_COLUMNS: DirectoryColumn[] = [
   { id: 'actions', label: 'Actions', align: 'end', sortable: false },
 ];
 
-function kindLabel(row: FlatDirectoryRow): string {
-  return directoryNodeKindLabel(row);
-}
-
-function formatCount(value: number): string {
-  return formatInteger(value);
-}
-
-function directoryRowActions(
-  row: FlatDirectoryRow,
-  sourceRootPrefix: string | null | undefined,
-  actions: DirectoryExplorerActions,
-): RowActionItem[] {
-  const rawFolderPath = folderRawPath(row.displayPath, sourceRootPrefix);
-
-  if (row.kind === 'folder') {
-    return [
-      {
-        id: 'override-classification-folder',
-        label: 'Override classification for this folder',
-        icon: 'bi-sliders',
-        onClick: () =>
-          actions.onOverrideClassificationFolder(rawFolderPath, row.displayPath, row.classification),
-      },
-      {
-        id: 'exclude-folder',
-        label: 'Exclude folder',
-        icon: 'bi-folder-x',
-        onClick: () => actions.onExcludeFolder(rawFolderPath),
-      },
-      {
-        id: 'copy-folder-path',
-        label: 'Copy folder path',
-        icon: 'bi-clipboard',
-        onClick: () => actions.onCopyRawPath(rawFolderPath),
-      },
-    ];
-  }
-
-  return buildDiscoveryFileRowActions(
-    { rawPath: row.rawPath, displayPath: row.displayPath, classification: row.classification },
-    sourceRootPrefix,
-    actions,
-  );
-}
 
 export function DirectoryExplorer({
   files,
@@ -110,7 +65,7 @@ export function DirectoryExplorer({
   lazyTree: lazyTreeProp,
   projectId,
   scanRunId,
-}: {
+}: Readonly<{
   files: DiscoveryInventoryFile[];
   inventoryCapped?: boolean;
   sourceRootPrefix?: string | null;
@@ -126,7 +81,7 @@ export function DirectoryExplorer({
   };
   projectId?: string;
   scanRunId?: string;
-}): React.ReactElement {
+}>): React.ReactElement {
   const lazyTree = lazyTreeProp ?? {
     status: null,
     rootNodes: [],
@@ -195,7 +150,7 @@ export function DirectoryExplorer({
 
   function toggleExpanded(id: string, row?: FlatDirectoryRow): void {
     if (useLazyTree && row?.kind === 'folder') {
-      void lazyTree.loadChildren(row);
+      fireAndForget(lazyTree.loadChildren(row));
     }
     setExpanded((current) => {
       const next = new Set(current);
@@ -223,21 +178,16 @@ export function DirectoryExplorer({
   const emptyInventory = useLazyTree ? lazyTree.rootNodes.length === 0 && !lazyTree.loading : files.length === 0;
   const filterEmpty = filterActive && visibleRows.length === 0;
   const showServerKeywordSearch = Boolean(projectId && scanRunId && filterText.trim());
+  const explorerDescription = directoryExplorerDescription({
+    inventoryCapped,
+    useLazyTree,
+    showServerKeywordSearch,
+  });
 
   return (
     <div data-testid="discovery-directory-explorer">
       <h3 className="h6 mb-1">Directory explorer</h3>
-        <p className="small text-body-secondary mb-2">
-          Expandable directory tree grouped by display path. Folder rows aggregate child folders, files, and sizes.
-          All inventoried files are shown; exclude globs in scan scope omit paths from inventory entirely.
-          {inventoryCapped ? ' Tree reflects the capped inventory sample shown in the workspace.' : ''}
-          {useLazyTree
-            ? ' Large inventory — directory tree loads lazily from materialized server nodes. Expand folders to load children.'
-            : ''}
-          {showServerKeywordSearch
-            ? ' Keyword search below queries the full saved inventory via server paging (path, classification, language, source type).'
-            : ''}
-        </p>
+        <p className="small text-body-secondary mb-2">{explorerDescription}</p>
 
         {lazyTree.error ? (
           <p className="small text-danger mb-2" data-testid="discovery-directory-lazy-tree-error">
@@ -296,13 +246,11 @@ export function DirectoryExplorer({
                         key={column.id}
                         scope="col"
                         className={column.align === 'end' ? 'text-end' : undefined}
-                        aria-sort={
-                          sortable && sortColumnId === column.id
-                            ? sortDirection === 'asc'
-                              ? 'ascending'
-                              : 'descending'
-                            : undefined
-                        }
+                        aria-sort={directorySortAriaValue(
+                          sortable,
+                          sortColumnId === column.id,
+                          sortDirection,
+                        )}
                       >
                         {sortable ? (
                           <button
@@ -389,58 +337,5 @@ export function DirectoryExplorer({
           </div>
         )}
     </div>
-  );
-}
-
-function DirectoryExplorerRow({
-  row,
-  sourceRootPrefix,
-  actions,
-  renderers,
-  onToggle,
-}: {
-  row: FlatDirectoryRow;
-  sourceRootPrefix?: string | null;
-  actions: DirectoryExplorerActions;
-  renderers: DirectoryExplorerRenderers;
-  onToggle: () => void;
-}): React.ReactElement {
-  const indent = row.depth * 1.25;
-  const rowActionItems = directoryRowActions(row, sourceRootPrefix, actions);
-  const actionTestId = `discovery-directory-actions-${row.kind}-${row.name}`;
-
-  return (
-    <tr data-testid={`discovery-directory-row-${row.kind}-${row.name}`}>
-      <td>
-        <div className="d-flex align-items-center gap-2" style={{ paddingLeft: `${indent}rem` }}>
-          {row.hasChildren ? (
-            <DiscoveryRowToggle
-              expanded={row.expanded}
-              onToggle={onToggle}
-              label={row.name}
-              testId={`discovery-directory-toggle-${row.displayPath}`}
-            />
-          ) : (
-            <DiscoveryRowToggleSpacer />
-          )}
-          {renderers.renderFileTypeIcon(row)}
-          <span title={actions.pathsDiffer(row.displayPath, row.rawPath) ? `Display: ${row.displayPath}\nRaw: ${row.rawPath}` : row.displayPath}>
-            {row.name}
-          </span>
-        </div>
-      </td>
-      <td>{kindLabel(row)}</td>
-      <td>{renderers.renderClassification(row)}</td>
-      <td className="text-end">{row.kind === 'file' ? '—' : formatCount(row.foldersCount)}</td>
-      <td className="text-end">{formatCount(row.filesCount)}</td>
-      <td className="text-end">{formatBytes(row.sizeBytes)}</td>
-      <td className="text-end">{formatCount(row.codeLines)}</td>
-      <td className="text-end">{formatCount(row.commentLines)}</td>
-      <td className="text-end">{formatCount(row.blankLines)}</td>
-      <td className="text-end">{formatCount(row.totalLines)}</td>
-      <td className="text-end">
-        {renderers.renderRowActions(rowActionItems, actionTestId)}
-      </td>
-    </tr>
   );
 }

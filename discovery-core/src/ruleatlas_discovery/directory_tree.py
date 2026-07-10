@@ -111,6 +111,29 @@ def _finalize_folder(folder: _MutableFolder) -> DirectoryNode:
     )
 
 
+def _place_file_in_tree(
+    row: DiscoveryFile,
+    segments: list[str],
+    root_folders: dict[str, _MutableFolder],
+) -> None:
+    *folder_parts, _file_name = segments
+    parent: _MutableFolder | None = None
+    current_path = ""
+    bucket = root_folders
+    for index, folder_name in enumerate(folder_parts):
+        current_path = _folder_key(current_path, folder_name)
+        if folder_name not in bucket:
+            bucket[folder_name] = _MutableFolder(
+                display_path=current_path,
+                name=folder_name,
+                depth=index,
+            )
+        parent = bucket[folder_name]
+        bucket = parent.child_folders
+    if parent is not None:
+        parent.files.append(row)
+
+
 def build_directory_tree(
     files: list[DiscoveryFile],
     *,
@@ -120,12 +143,13 @@ def build_directory_tree(
 
     def to_display_path(path: str) -> str:
         normalized = path.replace("\\", "/")
-        if source_root_prefix:
-            prefix = source_root_prefix.rstrip("/") + "/"
-            if normalized.startswith(prefix):
-                return normalized[len(prefix) :]
-            if normalized == source_root_prefix.rstrip("/"):
-                return ""
+        if not source_root_prefix:
+            return normalized
+        prefix = source_root_prefix.rstrip("/") + "/"
+        if normalized.startswith(prefix):
+            return normalized[len(prefix) :]
+        if normalized == source_root_prefix.rstrip("/"):
+            return ""
         return normalized
 
     root_folders: dict[str, _MutableFolder] = {}
@@ -138,27 +162,10 @@ def build_directory_tree(
         segments = [part for part in display_path.split("/") if part]
         if not segments:
             continue
-
         if len(segments) == 1:
             root_files.append((row, segments[0], 0))
             continue
-
-        *folder_parts, _file_name = segments
-        parent: _MutableFolder | None = None
-        current_path = ""
-        bucket = root_folders
-        for index, folder_name in enumerate(folder_parts):
-            current_path = _folder_key(current_path, folder_name)
-            if folder_name not in bucket:
-                bucket[folder_name] = _MutableFolder(
-                    display_path=current_path,
-                    name=folder_name,
-                    depth=index,
-                )
-            parent = bucket[folder_name]
-            bucket = parent.child_folders
-        if parent is not None:
-            parent.files.append(row)
+        _place_file_in_tree(row, segments, root_folders)
 
     roots = [_finalize_folder(folder) for folder in sorted(root_folders.values(), key=lambda item: item.name.lower())]
     root_file_nodes = [_file_to_node(row, name=name, depth=depth) for row, name, depth in root_files]

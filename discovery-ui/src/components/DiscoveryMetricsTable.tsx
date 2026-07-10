@@ -30,7 +30,21 @@ function formatCellValue<T extends Record<string, unknown>>(
   if (useNumeric && typeof raw === 'number' && Number.isFinite(raw)) {
     return formatInteger(raw);
   }
-  return String(raw);
+  if (typeof raw === 'string') {
+    return raw;
+  }
+  if (typeof raw === 'number' || typeof raw === 'boolean' || typeof raw === 'bigint') {
+    return raw.toString();
+  }
+  return '—';
+}
+
+function metricsSortAriaValue(
+  isActive: boolean,
+  direction: SortDirection,
+): 'ascending' | 'descending' | undefined {
+  if (!isActive) return undefined;
+  return direction === 'asc' ? 'ascending' : 'descending';
 }
 
 function compareValues(a: number | string, b: number | string, direction: SortDirection): number {
@@ -242,13 +256,7 @@ export function DiscoveryMetricsTable<T extends Record<string, unknown>>({
                       <th
                         key={column.id}
                         className={column.align === 'end' ? 'text-end' : undefined}
-                        aria-sort={
-                          sortColumnId === column.id
-                            ? sortDirection === 'asc'
-                              ? 'ascending'
-                              : 'descending'
-                            : undefined
-                        }
+                        aria-sort={metricsSortAriaValue(sortColumnId === column.id, sortDirection)}
                       >
                         {sortable ? (
                           <button

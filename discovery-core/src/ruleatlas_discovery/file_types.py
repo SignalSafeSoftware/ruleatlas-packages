@@ -24,30 +24,33 @@ def classify_file_type(path: str, resolver: FileTypeResolver | None = None) -> R
     return (resolver or get_default_file_type_resolver()).resolve(path)
 
 
+def _special_glob_matches(pattern: str, path: str, basename: str) -> bool:
+    before, after = pattern.split("(.*)", 1)
+    glob_stem = before if before.endswith("*") else f"{before}*"
+    fn_pattern = f"{glob_stem}{after}"
+    root = before[:-1] if before.endswith("*") else before
+    exact = f"{root}{after}"
+    candidates = (
+        (basename, fn_pattern),
+        (basename.lower(), fn_pattern.lower()),
+        (path, fn_pattern),
+        (path.lower(), fn_pattern.lower()),
+    )
+    for name, fn in candidates:
+        if not fnmatch.fnmatch(name, fn):
+            continue
+        if name == exact or name.lower() == exact.lower():
+            return True
+        if (name.startswith(f"{root}.") or name.lower().startswith(f"{root.lower()}.")) and (
+            not after or name.endswith(after) or name.lower().endswith(after.lower())
+        ):
+            return True
+    return False
+
+
 def _glob_matches(pattern: str, path: str, basename: str) -> bool:
     if "(.*)" in pattern:
-        before, after = pattern.split("(.*)", 1)
-        glob_stem = before if before.endswith("*") else f"{before}*"
-        fn_pattern = f"{glob_stem}{after}"
-        root = before[:-1] if before.endswith("*") else before
-        exact = f"{root}{after}"
-        candidates = (
-            (basename, fn_pattern),
-            (basename.lower(), fn_pattern.lower()),
-            (path, fn_pattern),
-            (path.lower(), fn_pattern.lower()),
-        )
-        for name, fn in candidates:
-            if not fnmatch.fnmatch(name, fn):
-                continue
-            if name == exact or name.lower() == exact.lower():
-                return True
-            if (name.startswith(f"{root}.") or name.lower().startswith(f"{root.lower()}.")) and (
-                not after or name.endswith(after) or name.lower().endswith(after.lower())
-            ):
-                return True
-        return False
-
+        return _special_glob_matches(pattern, path, basename)
     if fnmatch.fnmatch(path, pattern) or fnmatch.fnmatch(basename, pattern):
         return True
     lower_pattern = pattern.lower()

@@ -110,7 +110,7 @@ export function normalizeDiscoveryFile(file: DiscoveryInventoryFile): Normalized
   const displayPath = file.display_path || file.path;
   const rawPath = file.path;
   const segments = displayPath.split('/').filter(Boolean);
-  const name = segments[segments.length - 1] ?? displayPath;
+  const name = segments.at(-1) ?? displayPath;
   return {
     id: file.id,
     displayPath,
@@ -255,7 +255,7 @@ export function naturalCompare(a: string, b: string): number {
 
 function classificationSortValue(value: string): string {
   if (value === '—' || value === 'Mixed') return value;
-  return value.replace(/_/g, ' ');
+  return value.replaceAll('_', ' ');
 }
 
 export function directoryNodeKindLabel(node: DirectoryTreeNode): string {
