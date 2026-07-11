@@ -14,6 +14,7 @@ import {
 } from '../utils/directoryTree';
 import {
   directoryExplorerDescription,
+  directoryExplorerEmptyCopy,
   fireAndForget,
 } from '../utils/directoryExplorerHelpers';
 import {
@@ -23,11 +24,22 @@ import {
 } from './DirectoryExplorerTable';
 
 type LazyTreeProp = {
-  status: { recommend_lazy_tree?: boolean } | null;
+  status: {
+    recommend_lazy_tree?: boolean;
+    needs_materialize?: boolean;
+    tree_materialized?: boolean;
+    inventory_capped?: boolean;
+    total_inventory_count?: number;
+    tree_state?: string;
+  } | null;
   rootNodes: import('../utils/directoryTree').DirectoryTreeNode[];
   childrenById: Map<string, import('../utils/directoryTree').DirectoryTreeNode[]>;
   loading: boolean;
+  materializing?: boolean;
   error: string | null;
+  materializeError?: string | null;
+  needsMaterialize?: boolean;
+  materialize?: () => Promise<void>;
   loadChildren: (node: import('../utils/directoryTree').DirectoryTreeNode) => Promise<void>;
 };
 
@@ -36,7 +48,10 @@ const EMPTY_LAZY_TREE: LazyTreeProp = {
   rootNodes: [],
   childrenById: new Map(),
   loading: false,
+  materializing: false,
   error: null,
+  materializeError: null,
+  needsMaterialize: false,
   loadChildren: async () => {},
 };
 
@@ -65,8 +80,13 @@ export function DirectoryExplorer({
   const [sortColumnId, setSortColumnId] = useState<DirectorySortColumnId>(DEFAULT_DIRECTORY_SORT.columnId);
   const [sortDirection, setSortDirection] = useState<DirectorySortDirection>(DEFAULT_DIRECTORY_SORT.direction);
 
+  const needsMaterialize = Boolean(
+    lazyTree.needsMaterialize ||
+      lazyTree.status?.needs_materialize ||
+      (inventoryCapped && lazyTree.status && !lazyTree.status.tree_materialized),
+  );
   const useLazyTree = Boolean(
-    inventoryCapped && lazyTree.status?.recommend_lazy_tree && !lazyTree.loading,
+    inventoryCapped && lazyTree.status?.recommend_lazy_tree && !lazyTree.loading && !needsMaterialize,
   );
 
   const tree = useMemo(() => (useLazyTree ? [] : buildDirectoryTree(files)), [files, useLazyTree]);
@@ -94,14 +114,20 @@ export function DirectoryExplorer({
   ]);
   const filterActive = filterText.trim().length > 0;
   const emptyInventory = useLazyTree
-    ? lazyTree.rootNodes.length === 0 && !lazyTree.loading
-    : files.length === 0;
+    ? lazyTree.rootNodes.length === 0 && !lazyTree.loading && !lazyTree.materializing
+    : files.length === 0 && !needsMaterialize;
   const filterEmpty = filterActive && visibleRows.length === 0;
   const showServerKeywordSearch = Boolean(projectId && scanRunId && filterText.trim());
   const explorerDescription = directoryExplorerDescription({
     inventoryCapped,
     useLazyTree,
     showServerKeywordSearch,
+    needsMaterialize,
+  });
+  const emptyCopy = directoryExplorerEmptyCopy({
+    needsMaterialize,
+    inventoryCapped,
+    totalInventoryCount: lazyTree.status?.total_inventory_count,
   });
 
   function toggleSort(column: DirectoryColumn): void {
@@ -140,14 +166,44 @@ export function DirectoryExplorer({
       <h3 className="h6 mb-1">Directory explorer</h3>
       <p className="small text-body-secondary mb-2">{explorerDescription}</p>
 
+      {needsMaterialize ? (
+        <div className="alert alert-info py-2" data-testid="discovery-directory-needs-materialize">
+          <p className="small mb-2">
+            Inventory exists for this scan ({lazyTree.status?.total_inventory_count ?? 'many'} files),
+            but the full directory tree is not materialized yet. The table below may show only a capped
+            sample until you build the tree.
+          </p>
+          <button
+            type="button"
+            className="btn btn-sm btn-primary"
+            data-testid="discovery-directory-materialize-cta"
+            disabled={Boolean(lazyTree.materializing) || !lazyTree.materialize}
+            onClick={() => {
+              if (lazyTree.materialize) {
+                fireAndForget(lazyTree.materialize());
+              }
+            }}
+          >
+            {lazyTree.materializing ? 'Building directory tree…' : 'Build directory tree'}
+          </button>
+          {lazyTree.materializeError ? (
+            <p className="small text-danger mb-0 mt-2" data-testid="discovery-directory-materialize-error">
+              {lazyTree.materializeError}
+              {' '}
+              Editor/scan permission may be required to materialize the tree.
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
       {lazyTree.error ? (
         <p className="small text-danger mb-2" data-testid="discovery-directory-lazy-tree-error">
           {lazyTree.error}
         </p>
       ) : null}
-      {useLazyTree && lazyTree.loading ? (
+      {(useLazyTree && lazyTree.loading) || lazyTree.materializing ? (
         <p className="small text-body-secondary mb-2" data-testid="discovery-directory-lazy-tree-loading">
-          Loading directory tree…
+          {lazyTree.materializing ? 'Building directory tree…' : 'Loading directory tree…'}
         </p>
       ) : null}
 
@@ -171,7 +227,7 @@ export function DirectoryExplorer({
 
       {emptyInventory ? (
         <p className="small text-body-secondary mb-0" data-testid="discovery-directory-explorer-empty">
-          No discovery inventory found. Run discovery to inventory files.
+          {emptyCopy}
         </p>
       ) : (
         <DirectoryExplorerTable
