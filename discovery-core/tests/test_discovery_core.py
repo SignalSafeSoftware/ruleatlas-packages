@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from ruleatlas_discovery import (
+    BucketHint,
+    CommentStyle,
     FileKind,
     FileTypeMapping,
     FileTypeResolver,
@@ -201,6 +203,57 @@ def test_python_test_glob_mapping() -> None:
 
     assert classify_file_type("conftest.py", resolver).display_type == "Python source"
     assert classify_file_type("permissions.py", resolver).display_type == "Python source"
+
+
+def test_csharp_php_and_tsx_language_classification() -> None:
+    resolver = FileTypeResolver()
+    cases = {
+        "src/Services/OrderService.cs": ("C#", "csharp", FileKind.CODE, ".cs"),
+        "OrderServiceTests.cs": ("C#", "csharp", FileKind.TEST, ".cs"),
+        "Services/OrderService.Tests.cs": ("C#", "csharp", FileKind.TEST, ".cs"),
+        "app/Http/Controllers/UserController.php": ("PHP", "php", FileKind.CODE, ".php"),
+        "tests/Unit/UserTest.php": ("PHP", "php", FileKind.TEST, ".php"),
+        "src/App.tsx": ("TSX", "tsx", FileKind.CODE, ".tsx"),
+        "src/App.test.tsx": ("TSX", "tsx", FileKind.TEST, ".tsx"),
+        "src/App.spec.tsx": ("TSX", "tsx", FileKind.TEST, ".tsx"),
+        "src/main.ts": ("TypeScript", "typescript", FileKind.CODE, ".ts"),
+        "src/main.py": ("Python", "python", FileKind.CODE, ".py"),
+        "features/login.feature": ("Gherkin", "gherkin", FileKind.TEST, ".feature"),
+    }
+    for path, (language, language_key, file_kind, extension) in cases.items():
+        resolved = classify_file_type(path, resolver)
+        assert resolved.language == language, path
+        assert resolved.language_key == language_key, path
+        assert resolved.file_kind == file_kind, path
+        assert resolved.extension == extension, path
+
+
+def test_path_role_overlay_does_not_overwrite_language() -> None:
+    resolver = FileTypeResolver()
+    generated_cs = classify_file_type("src/generated/OrderService.cs", resolver)
+    assert generated_cs.language == "C#"
+    assert generated_cs.language_key == "csharp"
+    assert generated_cs.extension == ".cs"
+    assert generated_cs.file_kind == FileKind.GENERATED
+    assert generated_cs.default_bucket_hint == BucketHint.GENERATED_VENDOR
+    assert generated_cs.display_type == "Generated output"
+    assert generated_cs.comment_style == CommentStyle.SLASH
+
+    generated_php = classify_file_type("generated/src/User.php", resolver)
+    assert generated_php.language == "PHP"
+    assert generated_php.language_key == "php"
+    assert generated_php.file_kind == FileKind.GENERATED
+
+    generated_tsx = classify_file_type("build/generated/Widget.tsx", resolver)
+    assert generated_tsx.language == "TSX"
+    assert generated_tsx.language_key == "tsx"
+    assert generated_tsx.file_kind == FileKind.GENERATED
+
+    # Role detection must not rewrite a non-generated production language match.
+    production = classify_file_type("src/Services/OrderService.cs", resolver)
+    assert production.language == "C#"
+    assert production.file_kind == FileKind.CODE
+    assert production.default_bucket_hint == BucketHint.PRODUCTION
 
 
 def test_line_count_aggregation() -> None:

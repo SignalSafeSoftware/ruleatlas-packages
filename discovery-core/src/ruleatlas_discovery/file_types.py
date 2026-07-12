@@ -110,6 +110,43 @@ def _entry_to_resolved(entry: FileTypeMapping, path: str) -> ResolvedFileType:
     )
 
 
+def _has_concrete_language(entry: FileTypeMapping) -> bool:
+    """True when the mapping owns a real language/format, not a role pseudo-label."""
+    key = (entry.language_key or "").strip().lower()
+    return bool(key) and key != UNKNOWN_LANGUAGE_KEY
+
+
+def _compose_role_with_language(
+    role_resolved: ResolvedFileType,
+    language_resolved: ResolvedFileType,
+) -> ResolvedFileType:
+    """Keep path/role fields from the winning match; keep language from a concrete mapping.
+
+    Path-based role overlays (e.g. ``**/generated/**``) must not erase the
+    language/format detected from the file extension.
+    """
+    comment_style = language_resolved.comment_style
+    if comment_style == CommentStyle.UNSUPPORTED:
+        comment_style = role_resolved.comment_style
+    extension = language_resolved.extension
+    if extension == NO_EXTENSION:
+        extension = role_resolved.extension
+    return ResolvedFileType(
+        language=language_resolved.language,
+        language_key=language_resolved.language_key,
+        extension=extension,
+        display_type=role_resolved.display_type,
+        file_type=role_resolved.file_type,
+        file_kind=role_resolved.file_kind,
+        default_bucket_hint=role_resolved.default_bucket_hint,
+        comment_style=comment_style,
+        mapping_source=role_resolved.mapping_source,
+        mapping_pattern=role_resolved.mapping_pattern,
+        is_binary=role_resolved.is_binary or language_resolved.is_binary,
+        is_generated_hint=role_resolved.is_generated_hint or language_resolved.is_generated_hint,
+    )
+
+
 def unknown_resolved_file_type(path: str) -> ResolvedFileType:
     file_path = Path(path.replace("\\", "/"))
     suffix = file_path.suffix.lower()
@@ -147,18 +184,25 @@ class FileTypeResolver:
         normalized = path.replace("\\", "/")
         basename = Path(normalized).name
         suffix = Path(normalized).suffix.lower()
-        best: tuple[int, FileTypeMapping] | None = None
+        scored: list[tuple[int, FileTypeMapping]] = []
         for entry in self._entries:
             score = _match_score(entry, normalized, basename, suffix)
             if score is None:
                 continue
             if entry.source == MappingSource.CUSTOM:
                 score += 50_000
-            if best is None or score > best[0]:
-                best = (score, entry)
-        if best is None:
+            scored.append((score, entry))
+        if not scored:
             return unknown_resolved_file_type(path)
-        return _entry_to_resolved(best[1], path)
+        scored.sort(key=lambda item: item[0], reverse=True)
+        best_entry = scored[0][1]
+        role_resolved = _entry_to_resolved(best_entry, path)
+        if _has_concrete_language(best_entry):
+            return role_resolved
+        for _, candidate in scored[1:]:
+            if _has_concrete_language(candidate):
+                return _compose_role_with_language(role_resolved, _entry_to_resolved(candidate, path))
+        return role_resolved
 
     def list_entries(self) -> list[FileTypeMapping]:
         return list(self._entries)
