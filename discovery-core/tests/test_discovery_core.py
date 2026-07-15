@@ -299,3 +299,10 @@ def test_glob_matching() -> None:
         DiscoveryScope(include_globs=["**/*.py"], exclude_globs=[]),
     )
     assert [row.path for row in scoped] == ["keep.py"]
+
+
+def test_bare_extension_glob_matches_nested_paths() -> None:
+    # RA-02-002: fnmatch '*' spans '/', so a bare '*.json' matches nested files too (not basename-only).
+    assert matches_any_glob("a/b/c.json", ["*.json"])
+    assert matches_any_glob("top.json", ["*.json"])
+    assert not should_include_path("vendor/foo.json", [], ["*.json"])
