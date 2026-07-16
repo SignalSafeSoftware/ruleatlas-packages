@@ -1,0 +1,1 @@
+"""Pure structural-graph domain."""

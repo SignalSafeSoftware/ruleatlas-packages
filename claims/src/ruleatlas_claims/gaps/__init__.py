@@ -1,0 +1,1 @@
+"""Pure implementation-gap domain."""

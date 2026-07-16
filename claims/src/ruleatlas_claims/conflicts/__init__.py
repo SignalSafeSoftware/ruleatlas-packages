@@ -1,0 +1,1 @@
+"""Pure conflict-detection domain."""

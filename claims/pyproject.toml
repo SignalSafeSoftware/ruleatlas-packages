@@ -19,6 +19,8 @@ classifiers = [
 ]
 dependencies = [
   "ruleatlas-contracts",
+  "ruleatlas-persistence",
+  "sqlalchemy>=2.0",
 ]
 
 [project.optional-dependencies]
@@ -26,6 +28,7 @@ dev = ["pytest>=8.3.0", "build>=1.2.0", "twine>=5.0.0", "ruff>=0.5.0", "mypy>=1.
 
 [tool.uv.sources]
 ruleatlas-contracts = { path = "../contracts", editable = true }
+ruleatlas-persistence = { path = "../persistence", editable = true }
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/ruleatlas_claims"]
@@ -37,6 +40,12 @@ src = ["src", "tests"]
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "C4", "SIM", "RUF"]
 
+[tool.ruff.lint.per-file-ignores]
+# Carried over verbatim from apps/api when these modules were extracted (behavior-preserving move).
+"src/ruleatlas_claims/clustering/canonicalize.py" = ["E501", "SIM103"]
+"src/ruleatlas_claims/conflicts/conflict_detection_v2.py" = ["SIM102"]
+"src/ruleatlas_claims/structured_semantics.py" = ["SIM102", "SIM103"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
@@ -45,3 +54,5 @@ pythonpath = ["src"]
 python_version = "3.12"
 strict = true
 mypy_path = "src"
+# ORM rows surface as Mapped[dict]/Mapped[list]; match apps/api + ruleatlas-persistence.
+disallow_any_generics = false
