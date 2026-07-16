@@ -8,11 +8,13 @@ enforceable, acyclic boundaries. Full plan: [`docs/architecture/package-decompos
 | Package | State |
 | --- | --- |
 | `contracts` | **extracted / in use** — enums, `ClaimDraft`, provider contracts, classification, authorization |
-| `discovery-core` | **extracted / in use** — file typing, globbing, metrics, dir tree |
+| `discovery-core` | **extracted / in use** — file typing, globbing, metrics, dir tree + scanning utilities (`file_type_registry`, `line_metrics`, `production_bucket`, `classification_signals`, `source_path_display`, `analyzer_sandbox`) |
 | `persistence` | **extracted / in use, shims removed** — the whole ORM ring (`Base` + mixins + `enum_column` + all ORM models (85 tables) + `append_only` + `inventory_keyword` + all ~55 `repositories/` + `RepositoryFactory`); ~490 importers repointed to `ruleatlas_persistence.*`, `infrastructure.db.*` shims deleted (only `session` stays in the app) |
-| `exports` | **partially migrated** — pure core (`csv_safety`, `export_labels`, `markdown_builder`, `report_types`) extracted; ORM builders pending persistence |
-| `claims` | **partially migrated** — ORM-free logic (`confidence_scorer`, `relationship_suggester`, `text_normalize`) extracted; ORM parts pending persistence |
-| `extraction` · `ai` · `demo` | **scaffold** — initialized/importable; migration pending persistence |
+| `claims` | **extracted / in use** — the pure rule-IR domain: `claim_service`, `structured_semantics`, `clustering/`, `conflicts/`, `gaps/`, `rules/`, `graph/`, `semantic/` (+ `confidence_scorer`, `relationship_suggester`, `text_normalize`). App keeps the audit/service-factory orchestrators (`cluster_service`, `rule_identity`, scoring adapters). |
+| `extraction` | **extracted / in use** — pure candidate extraction: `heuristic_extractor`, `comment_classifier`, `extractor`, `schemas`, and BDD (`bdd/`). App keeps the file-reading/pipeline orchestrators (`service`, `file_reader`, `rule_writer`). |
+| `ai` | **extracted / in use** — pure AI domain: `budget`, `providers/` (probes, protocols, validation), `synthesis/` (schema, validation, wording). App keeps provider adapters + governance/connection/synthesis-workflow orchestrators. |
+| `exports` | **extracted / in use (pure core)** — pure formatters (`csv_safety`, `export_labels`, `markdown_builder`, `report_types`). The report *builders* orchestrate app queries/scanning and stay in the app by design. |
+| `demo` | **stays in `apps/api`** — the leaf composition/seed layer orchestrates every context (incl. app-tier ai/pipeline); nothing depends on it, so a package would only add a package→app cycle. |
 
 ## Layout
 
