@@ -20,7 +20,8 @@ classifiers = [
 dependencies = [
   "ruleatlas-contracts",
   "sqlalchemy>=2.0",
-  "sqlphilosophy>=0.1.8",
+  # Pin to match apps/api (^0.1.8): 0.2.0 changed the RepositoryFactory protocol signatures.
+  "sqlphilosophy>=0.1.8,<0.2.0",
 ]
 
 [project.optional-dependencies]

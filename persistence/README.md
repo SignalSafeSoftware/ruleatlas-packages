@@ -5,10 +5,13 @@
 through. It exists so the context packages depend on *one* persistence package instead of reaching back into
 `apps/api`.
 
-> Status: **partially migrated.** In (verified: full suite 1319, docker builds): the declarative `Base`,
-> `mixins`, `enum_column`, **all ORM models** (85 tables), and `append_only`. Pending: the `repositories/` +
-> `RepositoryFactory` (Step 3). Back-compat shims remain at `ruleatlas.infrastructure.db.*`. See the migration
-> plan below and [`docs/architecture/package-decomposition.md`](../../docs/architecture/package-decomposition.md).
+> Status: **fully migrated** (verified: package standalone ruff + mypy 76 files + pytest; apps/api mypy 446 +
+> import-linter 5/0; full suite 1319 passed; docker image builds; container resolves 85 tables). In: the
+> declarative `Base`, `mixins`, `enum_column`, **all ORM models** (85 tables), `append_only`, the
+> `inventory_keyword` query helper, and **all ~55 `repositories/` + `RepositoryFactory`**. Back-compat shims
+> remain at `ruleatlas.infrastructure.db.*` (models, repositories, base, mixins, enum_column, append_only) and
+> `ruleatlas.shared.enum_utils` so existing importers keep working until the Phase-5 shim sweep. See
+> [`docs/architecture/package-decomposition.md`](../../docs/architecture/package-decomposition.md).
 
 ## Why this package exists (the enabler)
 
@@ -57,32 +60,42 @@ scans. Example: the "invoices over $10,000 require manager approval" rule is one
 
 ## Migration map (what moves in)
 
-| Target (here) | Moves from (`apps/api/src/ruleatlas/infrastructure/db/…`) |
-| --- | --- |
-| `base.py` | `base.py` (declarative `Base`) |
-| `mixins.py`, `enum_column.py` | `mixins.py`, `enum_column.py` |
-| `models/` | `models/` (`_base`, `core`, `scanning`, `rules`, `ai`, `graph_claims`, `tickets`) |
-| `repositories/` | `repositories/` (~55 repos + `factory.py`) |
-| `append_only.py` | `append_only.py` (already relocated into the db layer) |
-| `query/inventory_keyword.py` | `application/scanning/discovery_inventory_keyword.py` (it's a `SourceFile` query helper) |
+| Target (here) | Moved from (`apps/api/src/ruleatlas/…`) | Status |
+| --- | --- | --- |
+| `base.py` | `infrastructure/db/base.py` (declarative `Base`) | ✅ |
+| `mixins.py`, `enum_column.py` | `infrastructure/db/mixins.py`, `enum_column.py` | ✅ |
+| `models/` | `infrastructure/db/models/` (`_base`, `core`, `scanning`, `rules`, `ai`, `graph_claims`, `tickets`) | ✅ |
+| `repositories/` | `infrastructure/db/repositories/` (~55 repos + `factory.py` + `export_report`/`discovery_inventory` query builders) | ✅ |
+| `append_only.py` | `infrastructure/db/append_only.py` | ✅ |
+| `inventory_keyword.py` | `application/scanning/discovery_inventory_keyword.py` (a `SourceFile` query helper) | ✅ |
 
-**Stays in `apps/api`:** `session.py` (engine/`SessionLocal`), `alembic/` (env + versions).
+`enum_value` (a pure enum→str coercion helper the repositories used) moved to the kernel at
+`ruleatlas_contracts.enum_utils` (shim left at `ruleatlas.shared.enum_utils`).
+
+**Stays in `apps/api`:** `session.py` (engine/`SessionLocal`), `alembic/` (env + versions), and
+`analysis_version_compare_query_builder` (it flattens the app-level `AnalysisVersionCompareResult` DTO into
+export rows in 5 methods — an app/export concern, not a pure repository, so it moved to
+`application/analysis/` instead of into this package).
 
 ### Back-edges resolved during the move
 
-- `session → application.audit.append_only` — ✅ already fixed (`append_only` now lives in the db layer).
-- `discovery_inventory_query_builder → application.scanning.discovery_inventory_keyword` — the keyword helper is a
-  `SourceFile`/SQLAlchemy query concern and moves **into** this package.
-- `analysis_version_compare_query_builder → application.analysis` — a **type-only** (`TYPE_CHECKING`) import;
-  resolved with a forward-ref / kernel DTO.
+- `session → application.audit.append_only` — ✅ fixed (`append_only` lives in this package).
+- `discovery_inventory_query_builder → application.scanning.discovery_inventory_keyword` — ✅ the keyword helper is a
+  `SourceFile`/SQLAlchemy query concern and moved **into** this package (`inventory_keyword.py`).
+- `analysis_version_compare_query_builder → application.analysis` — ✅ removed by keeping that builder in the app
+  (it's app-DTO-coupled), so no db→app edge remains.
 
-### How the move stays safe
+Result: the package imports **only** `ruleatlas-contracts` + SQLAlchemy + `sqlphilosophy` — verified by the
+package's own CI job (`uv run mypy src`, which fails on any leaked `ruleatlas.application`/`ruleatlas.api` import).
+`sqlphilosophy` is pinned `>=0.1.8,<0.2.0` to match `apps/api` (0.2.0 changed the `RepositoryFactory` protocol).
 
-The models/repositories relocate together (so the SQLAlchemy registry + relationships stay intact), enum
-imports repoint to `ruleatlas_contracts.enums`, and **back-compat shims** are left at
+### How the move stayed safe
+
+The models + repositories relocated **together** (so the SQLAlchemy registry + relationships stay intact), enum
+imports repointed to `ruleatlas_contracts.enums`, and **back-compat shims** remain at
 `ruleatlas.infrastructure.db.*` so the hundreds of existing importers keep working. Alembic's `env.py` imports
-`Base` (via the shim) so `Base.metadata` still sees every table. Verification: full backend suite + a docker
-image build before the shims are later removed.
+`Base` (via the shim) so `Base.metadata` still sees every table. Verified with the full backend suite (1319
+passed) + a docker image build + a container smoke resolving all 85 tables before the Phase-5 shim removal.
 
 ## Development
 
