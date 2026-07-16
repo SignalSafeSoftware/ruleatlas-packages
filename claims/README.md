@@ -4,10 +4,19 @@
 normalized, related into a graph, clustered, and reconciled (conflicts/gaps) — *before* anything becomes a
 confirmed rule.
 
-> Status: **partially migrated.** ORM-free logic already lives in the claims context and is staged to move
-> here: `application/scoring/confidence_scorer.py`, `application/rules/relationship_suggester.py`,
-> `application/claims/structured_semantics.py`. The ORM-coupled modules (clustering/conflict persistence)
-> await Phase-3 dependency inversion before they can move.
+> Status: **partially migrated (extraction started).** Three ORM-free modules are now **in this package** and
+> imported by `apps/api`: `confidence_scorer` (pure scoring), `relationship_suggester` (pure heuristics + DTOs),
+> and `text_normalize` (`normalize_rule_text`). Wired via Poetry path dep + Dockerfile; verified end-to-end
+> (mypy 525, full suite 1319, image builds). The ORM-coupled modules (clustering/conflict persistence,
+> `structured_semantics` which uses the `SourceClaim` model) await Phase-3 dependency inversion before they move.
+
+## Current contents (extracted)
+
+| Module | Contents |
+| --- | --- |
+| `confidence_scorer.py` | Model-free confidence scoring: DTOs (`RuleConfidenceInputs`, `EvidenceView`) + `score_rule_confidence` (kernel deps only) |
+| `relationship_suggester.py` | Pure relationship heuristics + DTOs (`RuleView`, `EvidenceView`, `SuggestionCandidate`, `suggest_deterministic_relationships`, `filter_best_candidates`) |
+| `text_normalize.py` | `normalize_rule_text` — language-agnostic token normalization for clustering/dedup |
 
 ## Why this is the real "language-independent layer"
 
