@@ -9,7 +9,7 @@ enforceable, acyclic boundaries. Full plan: [`docs/architecture/package-decompos
 | --- | --- |
 | `contracts` | **extracted / in use** — enums, `ClaimDraft`, provider contracts, classification, authorization |
 | `discovery-core` | **extracted / in use** — file typing, globbing, metrics, dir tree |
-| `persistence` | **scaffold** — the ORM layer (models + repositories + `Base`); the enabler for moving the remaining ORM-coupled contexts |
+| `persistence` | **partially migrated** — `Base` + mixins + `enum_column` + all ORM models + `append_only` extracted (verified); `repositories/` + `RepositoryFactory` pending (Step 3) |
 | `exports` | **partially migrated** — pure core (`csv_safety`, `export_labels`, `markdown_builder`, `report_types`) extracted; ORM builders pending persistence |
 | `claims` | **partially migrated** — ORM-free logic (`confidence_scorer`, `relationship_suggester`, `text_normalize`) extracted; ORM parts pending persistence |
 | `extraction` · `ai` · `demo` | **scaffold** — initialized/importable; migration pending persistence |

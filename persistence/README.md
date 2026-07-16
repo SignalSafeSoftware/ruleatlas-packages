@@ -5,8 +5,10 @@
 through. It exists so the context packages depend on *one* persistence package instead of reaching back into
 `apps/api`.
 
-> Status: **scaffold** — initialized and importable. The ORM layer (`infrastructure/db/*`) migrates in next;
-> see the migration plan below and [`docs/architecture/package-decomposition.md`](../../docs/architecture/package-decomposition.md).
+> Status: **partially migrated.** In (verified: full suite 1319, docker builds): the declarative `Base`,
+> `mixins`, `enum_column`, **all ORM models** (85 tables), and `append_only`. Pending: the `repositories/` +
+> `RepositoryFactory` (Step 3). Back-compat shims remain at `ruleatlas.infrastructure.db.*`. See the migration
+> plan below and [`docs/architecture/package-decomposition.md`](../../docs/architecture/package-decomposition.md).
 
 ## Why this package exists (the enabler)
 
