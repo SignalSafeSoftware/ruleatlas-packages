@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Protocol
+from typing import Any, Protocol
 
 
 @dataclass(frozen=True)
@@ -29,7 +29,7 @@ class NormalizedGraphNode:
     content_hash: str | None = None
     symbol_kind: str | None = None
     confidence: float = 1.0
-    attributes: dict = field(default_factory=dict)
+    attributes: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -41,7 +41,7 @@ class NormalizedGraphEdge:
     to_canonical_key: str
     confidence: float = 1.0
     resolution_type: str = "extracted"
-    attributes: dict = field(default_factory=dict)
+    attributes: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -58,7 +58,7 @@ class StructuralAnalysisResult:
     duration_ms: int | None = None
     error_message: str | None = None
     raw_payload_hash: str | None = None
-    summary: dict = field(default_factory=dict)
+    summary: dict[str, Any] = field(default_factory=dict)
 
 
 class StructuralGraphProvider(Protocol):
@@ -68,9 +68,9 @@ class StructuralGraphProvider(Protocol):
 
 
 __all__ = [
-    "ProviderCapability",
-    "NormalizedGraphNode",
     "NormalizedGraphEdge",
+    "NormalizedGraphNode",
+    "ProviderCapability",
     "StructuralAnalysisResult",
     "StructuralGraphProvider",
 ]

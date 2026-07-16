@@ -9,6 +9,7 @@ ai<->claims cycles).
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any
 
 from ruleatlas_contracts.enums import SourceClaimRole
 
@@ -33,5 +34,5 @@ class ClaimDraft:
     end_line: int | None = None
     provider_version: str | None = None
     graph_node_id: str | None = None
-    evidence: list[dict] = field(default_factory=list)
-    attributes: dict = field(default_factory=dict)
+    evidence: list[dict[str, Any]] = field(default_factory=list)
+    attributes: dict[str, Any] = field(default_factory=dict)

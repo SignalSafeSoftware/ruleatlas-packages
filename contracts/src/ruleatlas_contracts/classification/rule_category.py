@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import re
 
-from ruleatlas_contracts.classification.scaffold_filter import is_scaffold_evidence_text
 from ruleatlas_contracts.classification.rule_display import is_non_rule_claim
+from ruleatlas_contracts.classification.scaffold_filter import is_scaffold_evidence_text
 from ruleatlas_contracts.enums import RuleCategory
 
 # Prefer unknown over a wrong business/security label for identifier-like claims.

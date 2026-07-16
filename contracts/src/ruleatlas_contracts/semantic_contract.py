@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Protocol
+from typing import Any, Protocol
 
 from ruleatlas_contracts.graph_contract import ProviderCapability
 
@@ -17,7 +17,7 @@ class SemanticSymbol:
     start_line: int | None = None
     end_line: int | None = None
     confidence: float = 1.0
-    attributes: dict = field(default_factory=dict)
+    attributes: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -29,7 +29,7 @@ class SemanticReference:
     start_line: int | None = None
     confidence: float = 1.0
     resolution_type: str = "extracted"
-    attributes: dict = field(default_factory=dict)
+    attributes: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -37,7 +37,7 @@ class SemanticImplementation:
     interface_symbol_key: str
     implementation_symbol_key: str
     confidence: float = 1.0
-    attributes: dict = field(default_factory=dict)
+    attributes: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -60,7 +60,7 @@ class SemanticAnalysisResult:
     diagnostics: list[SemanticDiagnostic] = field(default_factory=list)
     duration_ms: int | None = None
     error_message: str | None = None
-    summary: dict = field(default_factory=dict)
+    summary: dict[str, Any] = field(default_factory=dict)
 
 
 class SemanticProvider(Protocol):
@@ -70,10 +70,10 @@ class SemanticProvider(Protocol):
 
 
 __all__ = [
-    "SemanticSymbol",
-    "SemanticReference",
-    "SemanticImplementation",
-    "SemanticDiagnostic",
     "SemanticAnalysisResult",
+    "SemanticDiagnostic",
+    "SemanticImplementation",
     "SemanticProvider",
+    "SemanticReference",
+    "SemanticSymbol",
 ]

@@ -53,6 +53,6 @@ def is_non_rule_claim(text: str | None) -> bool:
 __all__ = [
     "MAX_DISPLAY_TITLE_LEN",
     "build_rule_display_title",
-    "is_signature_like_claim",
     "is_non_rule_claim",
+    "is_signature_like_claim",
 ]

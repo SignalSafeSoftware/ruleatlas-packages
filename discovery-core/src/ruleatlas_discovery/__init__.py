@@ -59,7 +59,6 @@ from ruleatlas_discovery.serialization import (
 from ruleatlas_discovery.version import __version__
 
 __all__ = [
-    "__version__",
     "BUILTIN_ID_PREFIX",
     "EMPTY_PATTERN",
     "FILE_NODE_ID_PREFIX",
@@ -83,6 +82,7 @@ __all__ = [
     "MatchType",
     "NodeKind",
     "ResolvedFileType",
+    "__version__",
     "aggregate_line_counts",
     "aggregate_line_counts_by_file_type",
     "apply_discovery_scope",

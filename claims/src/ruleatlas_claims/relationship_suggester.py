@@ -8,6 +8,7 @@ maps ORM rows to these DTOs, adds the session-bound SAME_AS (duplicate-cluster) 
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 from ruleatlas_contracts.enums import (
     EvidenceSourceType,
@@ -111,7 +112,7 @@ class SuggestionCandidate:
     suggested_relationship_type: RuleRelationshipType
     confidence: float
     reason: str
-    signals: dict
+    signals: dict[str, Any]
 
 
 def _shared_terms(left: str, right: str) -> list[str]:
