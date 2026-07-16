@@ -17,10 +17,15 @@ classifiers = [
   "Programming Language :: Python :: 3.12",
   "Typing :: Typed",
 ]
-dependencies = []
+dependencies = [
+  "ruleatlas-contracts",
+]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.3.0", "build>=1.2.0", "twine>=5.0.0", "ruff>=0.5.0"]
+dev = ["pytest>=8.3.0", "build>=1.2.0", "twine>=5.0.0", "ruff>=0.5.0", "mypy>=1.11.0"]
+
+[tool.uv.sources]
+ruleatlas-contracts = { path = "../contracts", editable = true }
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/ruleatlas_discovery"]
@@ -32,6 +37,16 @@ src = ["src", "tests"]
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "C4", "SIM", "RUF"]
 
+[tool.ruff.lint.per-file-ignores]
+# Carried over verbatim from apps/api when this module was extracted (behavior-preserving move).
+"src/ruleatlas_discovery/line_metrics.py" = ["E402", "SIM108"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+mypy_path = "src"
+disallow_any_generics = false

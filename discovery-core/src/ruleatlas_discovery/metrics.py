@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from ruleatlas_discovery.file_types import FileTypeResolver
 from ruleatlas_discovery.line_counts import aggregate_line_counts, aggregate_line_counts_by_file_type
 from ruleatlas_discovery.models import DiscoveryFile, InventoryMetrics
 
@@ -9,7 +10,7 @@ from ruleatlas_discovery.models import DiscoveryFile, InventoryMetrics
 def build_inventory_metrics(
     files: list[DiscoveryFile],
     *,
-    resolver=None,
+    resolver: FileTypeResolver | None = None,
 ) -> InventoryMetrics:
     line_totals = aggregate_line_counts(files)
     by_file_type = aggregate_line_counts_by_file_type(files, resolver=resolver)
