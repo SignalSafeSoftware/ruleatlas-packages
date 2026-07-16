@@ -9,7 +9,7 @@ enforceable, acyclic boundaries. Full plan: [`docs/architecture/package-decompos
 | --- | --- |
 | `contracts` | **extracted / in use** — enums, `ClaimDraft`, provider contracts, classification, authorization |
 | `discovery-core` | **extracted / in use** — file typing, globbing, metrics, dir tree |
-| `persistence` | **extracted / in use** — `Base` + mixins + `enum_column` + all ORM models (85 tables) + `append_only` + `inventory_keyword` + all ~55 `repositories/` + `RepositoryFactory` (verified standalone + full suite + docker); shims remain at `ruleatlas.infrastructure.db.*` until Phase-5 sweep |
+| `persistence` | **extracted / in use, shims removed** — the whole ORM ring (`Base` + mixins + `enum_column` + all ORM models (85 tables) + `append_only` + `inventory_keyword` + all ~55 `repositories/` + `RepositoryFactory`); ~490 importers repointed to `ruleatlas_persistence.*`, `infrastructure.db.*` shims deleted (only `session` stays in the app) |
 | `exports` | **partially migrated** — pure core (`csv_safety`, `export_labels`, `markdown_builder`, `report_types`) extracted; ORM builders pending persistence |
 | `claims` | **partially migrated** — ORM-free logic (`confidence_scorer`, `relationship_suggester`, `text_normalize`) extracted; ORM parts pending persistence |
 | `extraction` · `ai` · `demo` | **scaffold** — initialized/importable; migration pending persistence |

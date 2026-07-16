@@ -5,12 +5,15 @@
 through. It exists so the context packages depend on *one* persistence package instead of reaching back into
 `apps/api`.
 
-> Status: **fully migrated** (verified: package standalone ruff + mypy 76 files + pytest; apps/api mypy 446 +
-> import-linter 5/0; full suite 1319 passed; docker image builds; container resolves 85 tables). In: the
-> declarative `Base`, `mixins`, `enum_column`, **all ORM models** (85 tables), `append_only`, the
-> `inventory_keyword` query helper, and **all ~55 `repositories/` + `RepositoryFactory`**. Back-compat shims
-> remain at `ruleatlas.infrastructure.db.*` (models, repositories, base, mixins, enum_column, append_only) and
-> `ruleatlas.shared.enum_utils` so existing importers keep working until the Phase-5 shim sweep. See
+> Status: **fully migrated + shims removed.** The ORM layer lives **only** here — declarative `Base`, `mixins`,
+> `enum_column`, **all ORM models** (85 tables), `append_only`, the `inventory_keyword` query helper, and **all
+> ~55 `repositories/` + `RepositoryFactory`**. All ~490 app/test importers now import `ruleatlas_persistence.*`
+> directly; the six transitional `ruleatlas.infrastructure.db.*` shims (base/mixins/enum_column/append_only/
+> models/repositories) are **deleted**. Only `ruleatlas.infrastructure.db` (engine/`session` wiring) stays in the
+> app, plus a one-line `models` re-export on its `__init__` for Alembic table registration. `enum_value` is in the
+> kernel (`ruleatlas_contracts.enum_utils`; a shim remains at `ruleatlas.shared.enum_utils`). Verified: package
+> standalone (ruff + mypy 76 + pytest); apps/api (ruff, mypy 440, import-linter 5/0); full suite 1319 passed;
+> docker image builds; container resolves 85 tables + Alembic head. See
 > [`docs/architecture/package-decomposition.md`](../../docs/architecture/package-decomposition.md).
 
 ## Why this package exists (the enabler)
