@@ -41,12 +41,31 @@ DB persistence are injected by `apps/api` (this package defines interfaces, the 
 | `client/` | `application/ai/openai_client.py`, `budget.py` |
 | `governance.py` | `application/ai/governance.py` |
 | `connections/` | `application/ai_providers/*` (`connection_service.py`, `connection_*`, `openai_compatibility_probe.py`, `openai_adapter.py`) |
-| `synthesis/` | `application/ai_synthesis/*` (`workflow.py`, `rule_persistence.py`, `structured_semantics.py`) |
+| `synthesis/` | `application/ai_synthesis/*` (`workflow.py`, `rule_persistence.py`, `synthesis_wording.py`) — note `structured_semantics.py` moved to `ruleatlas-claims` |
 | `providers/` | `infrastructure/providers/semgrep_adapter.py`, `semantic_providers.py` |
 | `net/url_guard.py` | `infrastructure/net/url_guard.py` (SSRF guard; shared — may instead live in `contracts`) |
 
-The 795-LOC `connection_service.py` and 965-LOC `openai_compatibility_probe.py` are prime candidates to
-split as they move in.
+The former 795-LOC `connection_service.py` and 965-LOC `openai_compatibility_probe.py` have already been
+split (into `connection_bootstrap.py`, `openai_probe_payloads.py`, `openai_probe_diagnostics.py`, etc.) and
+move in as the smaller modules.
+
+## Synthesis is language-agnostic (multi-language example)
+
+AI synthesis consumes **claim clusters** (from `ruleatlas-claims`), not source code — so it never sees a
+language. Given the canonical cluster for *"invoices over $10,000 require manager approval"* (built from
+Python + TypeScript + PHP implementation claims, a PHPUnit test, and a Gherkin scenario), synthesis produces
+**one** candidate rule that cites all of them as evidence:
+
+```text
+Synthesized rule (status = NEEDS_REVIEW):
+  "An invoice whose total exceeds $10,000 must receive manager approval before it can be submitted."
+  evidence: billing/approvals.py:2, src/billing/approvals.ts:3, src/Billing/Approvals.php:4,
+            tests/ApprovalsTest.php (verification), features/invoice_approval.feature (product intent)
+```
+
+The cross-language corroboration *raises reviewer confidence* but never auto-approves — synthesized rules
+always land as `NEEDS_REVIEW`. Structural provider adapters (Semgrep, GA for Python/PHP/TypeScript) that live
+here emit the same `ClaimDraft` shape, so adding a language means adding a provider, not changing synthesis.
 
 ## Development
 

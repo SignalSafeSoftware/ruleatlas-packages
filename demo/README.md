@@ -35,6 +35,15 @@ contracts · discovery · extraction · claims · ai · exports
 **Boundary rule:** may import any `ruleatlas-*` package. The inverse is forbidden — a CI guard should fail if
 any runtime package imports `ruleatlas_demo`.
 
+## What the seed demonstrates (multi-language on purpose)
+
+The invoice-analysis demo seeds a **deliberately multi-language** sample project so reviewers can see the
+whole pipeline light up: the *"invoices over $10,000 require manager approval"* rule is planted as Python and
+TypeScript implementation, a PHP service, a PHPUnit test, and a Gherkin feature. Seeding that spread is what
+exercises cross-language clustering (`ruleatlas-claims`), conflict/gap detection (e.g. a seeded threshold
+mismatch across languages), and synthesis (`ruleatlas-ai`) end-to-end — offline, with no network or AI
+credentials required by default.
+
 ## Target contents (migration map)
 
 | Target module (here) | Moves from (`apps/api/src/ruleatlas/application/demo/…`) |
