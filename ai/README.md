@@ -4,7 +4,12 @@
 synthesis — kept in one package so the core scan/extraction path never hard-depends on AI and can degrade
 gracefully when AI is unavailable.
 
-> Status: **scaffold** — initialized and importable; no logic migrated yet.
+> Status: **extracted / in use** — the pure AI domain lives here: `budget`, `providers/` (probe
+> parsing/diagnostics/payloads/sanitization, `protocols`, `credential_validation`, `connection_errors`,
+> `recommendations`), and `synthesis/` (`schema`, `proposal_validation`, `synthesis_wording`, `wording_normalize`).
+> The app keeps the provider *adapters* (`openai_adapter`, `openai_compatibility_probe`), governance (audit),
+> connection/catalog/compatibility services, and the synthesis workflow/rule-persistence orchestrators — they wire
+> providers, config, and the request-scoped service factory. Verified standalone (ruff + mypy + pytest) and in CI.
 
 ## Invariants (from the project rules)
 

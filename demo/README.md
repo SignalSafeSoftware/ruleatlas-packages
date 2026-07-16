@@ -3,7 +3,11 @@
 **Demo / seed data generators — development only.** Depends on everything; **nothing depends on it**.
 Intended to be installed only as an optional dev/demo extra of `apps/api`, never in a production image.
 
-> Status: **scaffold** — initialized and importable; no logic migrated yet.
+> Status: **stays in `apps/api` (by design).** Unlike the domain contexts, `application/demo/` is the leaf
+> composition/seed layer: it orchestrates *every* context — including app-tier ai/pipeline orchestrators,
+> request-scoped services, config, and the queue — to seed demo data. Moving it into a package would create a
+> package→app cycle (the package would import `apps/api`), and since **nothing depends on demo**, a package adds
+> no reuse value. The scaffold remains as a placeholder; the demo code is intentionally not migrated.
 
 ## Why isolate this first
 

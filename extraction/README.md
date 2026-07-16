@@ -3,9 +3,12 @@
 **Rule-candidate extraction.** Turns source files, BDD specs, comments, and docs into **candidate claims**
 (never confirmed rules), each carrying evidence (path + line range + snippet) and a capped confidence.
 
-> Status: **scaffold** — initialized and importable. The extraction logic currently lives in
-> `apps/api` (`application/extraction/*`, `application/bdd/*`, `infrastructure/extraction/*`); the ORM-free
-> pieces (e.g. `application/extraction/heuristic_claim_extraction.py`) are staged to move here.
+> Status: **extracted / in use** — the pure extraction domain lives here: `heuristic_extractor`,
+> `comment_classifier`, `extractor`, `schemas`, and the BDD extractors (`bdd/{bdd_claims, gherkin_ingestion,
+> step_linking}`). The app keeps the file-reading/pipeline orchestrators (`infrastructure/extraction/service`,
+> `file_reader`, `rule_writer`, and `application/extraction/heuristic_claim_extraction`) — they read the git
+> workspace, call the matching normalizer, and wire analysis/events/config/manifest. Verified standalone
+> (ruff + mypy + pytest) and in CI.
 
 ## Responsibility
 
