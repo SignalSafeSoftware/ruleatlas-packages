@@ -1,0 +1,44 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ruleatlas-contracts"
+version = "0.1.0"
+description = "RuleAtlas shared kernel: enums, domain value objects, and provider/claim contracts depended on by every other package"
+readme = "README.md"
+license = { text = "Proprietary" }
+requires-python = ">=3.12"
+authors = [{ name = "RuleAtlas" }]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.12",
+  "Typing :: Typed",
+]
+# Kernel package: pure stdlib only (dataclasses + enum). It must stay dependency-free so every other
+# package can depend on it without pulling transitive weight. Do NOT add SQLAlchemy/FastAPI/httpx here.
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=8.3.0", "build>=1.2.0", "twine>=5.0.0", "ruff>=0.5.0", "mypy>=1.11.0"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ruleatlas_contracts"]
+
+[tool.ruff]
+line-length = 120
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "C4", "SIM", "RUF"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+mypy_path = "src"

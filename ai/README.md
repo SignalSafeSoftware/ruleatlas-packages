@@ -1,0 +1,57 @@
+# ruleatlas-ai
+
+**Everything AI-facing, isolated.** Providers/connections, governance enforcement, and claim-cluster
+synthesis — kept in one package so the core scan/extraction path never hard-depends on AI and can degrade
+gracefully when AI is unavailable.
+
+> Status: **scaffold** — initialized and importable; no logic migrated yet.
+
+## Invariants (from the project rules)
+
+- **AI extraction creates candidate claims, not confirmed rules.** Synthesized rules persist as
+  `NEEDS_REVIEW`.
+- **MCP is optional and must not be required for core scanning.** This whole package must be omittable; the
+  pipeline degrades, not fails, without it.
+- Outbound URLs (provider `base_url`, etc.) are SSRF-guarded; secrets are never logged.
+
+## Responsibility
+
+| Belongs here | Does **not** belong here |
+| --- | --- |
+| OpenAI-compatible client + retries | Persisting connections/secrets (DB/SSM) → `apps/api` |
+| Connection config, capability probing | Route handlers → `apps/api` |
+| AI governance (local-only/budget/allowed-models/license) | Producing heuristic candidates → `ruleatlas-extraction` |
+| Claim-cluster → candidate-rule synthesis | Clustering/graph algorithms → `ruleatlas-claims` |
+| Structural provider adapters (Semgrep, semantic) that emit claims | — |
+
+## Dependency position
+
+```
+ruleatlas-contracts ─┐
+ruleatlas-claims ────┴─▶ ruleatlas-ai  (+ httpx) ─▶ consumed by apps/api
+```
+
+**Boundary rule:** imports `ruleatlas-contracts`, `ruleatlas-claims`, and `httpx`. The **secret store** and
+DB persistence are injected by `apps/api` (this package defines interfaces, the app supplies SSM/vault).
+
+## Target contents (migration map)
+
+| Target module (here) | Moves from (`apps/api/src/ruleatlas/…`) |
+| --- | --- |
+| `client/` | `application/ai/openai_client.py`, `budget.py` |
+| `governance.py` | `application/ai/governance.py` |
+| `connections/` | `application/ai_providers/*` (`connection_service.py`, `connection_*`, `openai_compatibility_probe.py`, `openai_adapter.py`) |
+| `synthesis/` | `application/ai_synthesis/*` (`workflow.py`, `rule_persistence.py`, `structured_semantics.py`) |
+| `providers/` | `infrastructure/providers/semgrep_adapter.py`, `semantic_providers.py` |
+| `net/url_guard.py` | `infrastructure/net/url_guard.py` (SSRF guard; shared — may instead live in `contracts`) |
+
+The 795-LOC `connection_service.py` and 965-LOC `openai_compatibility_probe.py` are prime candidates to
+split as they move in.
+
+## Development
+
+```bash
+cd packages/ai
+uv sync --extra dev
+python -m pytest && python -m mypy src && python -m ruff check src tests
+```
