@@ -9,9 +9,10 @@ enforceable, acyclic boundaries. Full plan: [`docs/architecture/package-decompos
 | --- | --- |
 | `contracts` | **extracted / in use** — enums, `ClaimDraft`, provider contracts, classification, authorization |
 | `discovery-core` | **extracted / in use** — file typing, globbing, metrics, dir tree |
-| `exports` | **partially migrated** — pure core (`csv_safety`, `export_labels`, `markdown_builder`, `report_types`) extracted; ORM builders pending Phase-3 |
-| `claims` | **partially migrated** — ORM-free logic (`confidence_scorer`, `relationship_suggester`, `structured_semantics`) staged |
-| `extraction` · `ai` · `demo` | **scaffold** — initialized/importable; migration in progress |
+| `persistence` | **scaffold** — the ORM layer (models + repositories + `Base`); the enabler for moving the remaining ORM-coupled contexts |
+| `exports` | **partially migrated** — pure core (`csv_safety`, `export_labels`, `markdown_builder`, `report_types`) extracted; ORM builders pending persistence |
+| `claims` | **partially migrated** — ORM-free logic (`confidence_scorer`, `relationship_suggester`, `text_normalize`) extracted; ORM parts pending persistence |
+| `extraction` · `ai` · `demo` | **scaffold** — initialized/importable; migration pending persistence |
 
 ## Layout
 
@@ -19,6 +20,7 @@ enforceable, acyclic boundaries. Full plan: [`docs/architecture/package-decompos
 packages/
 ├── contracts/       ruleatlas-contracts   — shared kernel (enums, value objects, provider/claim contracts)
 ├── discovery-core/  ruleatlas-discovery   — file typing, globbing, line metrics, dir tree
+├── persistence/     ruleatlas-persistence — SQLAlchemy models, repositories, Base (the shared DB layer)
 ├── extraction/      ruleatlas-extraction  — heuristic/BDD/comment candidate extraction
 ├── claims/          ruleatlas-claims      — rule IR: claims, graph, clustering, conflicts, gaps
 ├── ai/              ruleatlas-ai          — AI providers, governance, cluster→candidate-rule synthesis
@@ -29,7 +31,8 @@ packages/
 ## Dependency direction (no cycles)
 
 ```
-apps/api ─▶ {ai, extraction, claims, exports, discovery} ─▶ contracts   (kernel: no deps)
+apps/api ─▶ {ai, extraction, claims, exports, discovery, persistence} ─▶ contracts   (kernel: no deps)
+{claims, ai, extraction, exports, demo} ─▶ persistence   (shared ORM layer; session/config stays in apps/api)
 demo ─▶ everything ; nothing ─▶ demo
 ```
 
