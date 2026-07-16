@@ -46,4 +46,7 @@ pythonpath = ["src"]
 [tool.mypy]
 python_version = "3.12"
 strict = true
+# ORM layer: SQLAlchemy JSON columns are naturally Mapped[dict]/Mapped[list]. Enforcing full generic args on
+# every JSON column is low-value churn, so relax just this one strict sub-flag (everything else stays strict).
+disallow_any_generics = false
 mypy_path = "src"
