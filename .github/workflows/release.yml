@@ -35,23 +35,3 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: ${{ matrix.package }}/dist
-
-  # discovery-ui publishes to npm (separate ecosystem). Requires an NPM_TOKEN secret and an npm
-  # org/scope (@ruleatlas). Enabled once those are configured.
-  npm:
-    runs-on: ubuntu-latest
-    if: ${{ vars.PUBLISH_NPM == 'true' }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          registry-url: "https://registry.npmjs.org"
-      - name: Build + publish discovery-ui
-        working-directory: discovery-ui
-        run: |
-          yarn install --frozen-lockfile || yarn install
-          yarn build
-          npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

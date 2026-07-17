@@ -1,8 +1,8 @@
 name: packages-ci
 
 # CI for the RuleAtlas packages repository (this directory becomes the repo root).
-# Each Python package is linted, type-checked, tested, and built standalone from the uv
-# workspace; the TypeScript discovery-ui package is built and tested with yarn.
+# Each Python package is linted, type-checked, tested, and built standalone from the uv workspace.
+# (discovery-ui lives in its own repository: SignalSafeSoftware/ruleatlas-discovery-ui.)
 
 on:
   push:
@@ -54,20 +54,3 @@ jobs:
         run: uv sync --all-extras
       - name: Enforce cross-package DAG
         run: uv run --with 'import-linter<2.0' lint-imports --config .importlinter
-
-  discovery-ui:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-      - name: Install
-        working-directory: discovery-ui
-        run: yarn install --frozen-lockfile || yarn install
-      - name: Typecheck
-        working-directory: discovery-ui
-        run: yarn typecheck
-      - name: Test
-        working-directory: discovery-ui
-        run: yarn test
