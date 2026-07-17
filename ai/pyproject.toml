@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ruleatlas-ai"
-version = "0.1.0"
+dynamic = ["version"]
 description = "RuleAtlas AI providers, connections, governance, and claim-cluster synthesis (candidate rules only)"
 readme = "README.md"
 license = { text = "Proprietary" }
@@ -33,6 +33,12 @@ dev = ["pytest>=8.3.0", "build>=1.2.0", "twine>=5.0.0", "ruff>=0.5.0", "mypy>=1.
 ruleatlas-contracts = { path = "../contracts", editable = true }
 ruleatlas-claims = { path = "../claims", editable = true }
 ruleatlas-persistence = { path = "../persistence", editable = true }
+
+[project.urls]
+Repository = "https://github.com/SignalSafeSoftware/ruleatlas"
+
+[tool.hatch.version]
+path = "src/ruleatlas_ai/version.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/ruleatlas_ai"]

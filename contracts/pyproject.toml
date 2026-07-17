@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ruleatlas-contracts"
-version = "0.1.0"
+dynamic = ["version"]
 description = "RuleAtlas shared kernel: enums, domain value objects, and provider/claim contracts depended on by every other package"
 readme = "README.md"
 license = { text = "Proprietary" }
@@ -23,6 +23,12 @@ dependencies = []
 
 [project.optional-dependencies]
 dev = ["pytest>=8.3.0", "build>=1.2.0", "twine>=5.0.0", "ruff>=0.5.0", "mypy>=1.11.0"]
+
+[project.urls]
+Repository = "https://github.com/SignalSafeSoftware/ruleatlas"
+
+[tool.hatch.version]
+path = "src/ruleatlas_contracts/version.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/ruleatlas_contracts"]

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ruleatlas-demo"
-version = "0.1.0"
+dynamic = ["version"]
 description = "RuleAtlas demo/seed data generators (development only; no runtime code depends on this)"
 readme = "README.md"
 license = { text = "Proprietary" }
@@ -38,6 +38,12 @@ ruleatlas-extraction = { path = "../extraction", editable = true }
 ruleatlas-claims = { path = "../claims", editable = true }
 ruleatlas-ai = { path = "../ai", editable = true }
 ruleatlas-exports = { path = "../exports", editable = true }
+
+[project.urls]
+Repository = "https://github.com/SignalSafeSoftware/ruleatlas"
+
+[tool.hatch.version]
+path = "src/ruleatlas_demo/version.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/ruleatlas_demo"]

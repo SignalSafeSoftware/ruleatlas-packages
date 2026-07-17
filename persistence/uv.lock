@@ -723,7 +723,6 @@ wheels = [
 
 [[package]]
 name = "ruleatlas-contracts"
-version = "0.1.0"
 source = { editable = "../contracts" }
 
 [package.metadata]
@@ -738,7 +737,6 @@ provides-extras = ["dev"]
 
 [[package]]
 name = "ruleatlas-persistence"
-version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "ruleatlas-contracts" },

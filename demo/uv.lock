@@ -884,7 +884,6 @@ wheels = [
 
 [[package]]
 name = "ruleatlas-ai"
-version = "0.1.0"
 source = { editable = "../ai" }
 dependencies = [
     { name = "httpx" },
@@ -913,7 +912,6 @@ provides-extras = ["dev"]
 
 [[package]]
 name = "ruleatlas-claims"
-version = "0.1.0"
 source = { editable = "../claims" }
 dependencies = [
     { name = "ruleatlas-contracts" },
@@ -936,7 +934,6 @@ provides-extras = ["dev"]
 
 [[package]]
 name = "ruleatlas-contracts"
-version = "0.1.0"
 source = { editable = "../contracts" }
 
 [package.metadata]
@@ -951,7 +948,6 @@ provides-extras = ["dev"]
 
 [[package]]
 name = "ruleatlas-demo"
-version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "ruleatlas-ai" },
@@ -989,7 +985,6 @@ provides-extras = ["dev"]
 
 [[package]]
 name = "ruleatlas-discovery"
-version = "0.1.0"
 source = { editable = "../discovery-core" }
 dependencies = [
     { name = "ruleatlas-contracts" },
@@ -1008,7 +1003,6 @@ provides-extras = ["dev"]
 
 [[package]]
 name = "ruleatlas-exports"
-version = "0.1.0"
 source = { editable = "../exports" }
 dependencies = [
     { name = "ruleatlas-contracts" },
@@ -1027,7 +1021,6 @@ provides-extras = ["dev"]
 
 [[package]]
 name = "ruleatlas-extraction"
-version = "0.1.0"
 source = { editable = "../extraction" }
 dependencies = [
     { name = "gherkin-official" },
@@ -1056,7 +1049,6 @@ provides-extras = ["dev"]
 
 [[package]]
 name = "ruleatlas-persistence"
-version = "0.1.0"
 source = { editable = "../persistence" }
 dependencies = [
     { name = "ruleatlas-contracts" },
