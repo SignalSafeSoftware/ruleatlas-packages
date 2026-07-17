@@ -1,0 +1,22 @@
+# Build artifacts
+dist/
+build/
+*.egg-info/
+*.egg
+
+# Bytecode / caches
+__pycache__/
+*.py[cod]
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+
+# Virtual envs
+.venv/
+venv/
+
+# uv: the workspace root uv.lock IS committed (reproducible CI); stray per-member locks are not.
+*/uv.lock
+
+# OS / editor
+.DS_Store

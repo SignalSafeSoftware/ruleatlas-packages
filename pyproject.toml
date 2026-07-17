@@ -1,0 +1,19 @@
+# uv workspace root for the RuleAtlas installable packages.
+#
+# This is a *virtual* workspace (no [project] of its own): it only ties the member
+# packages together so `uv sync` / `uv run` at this root resolve the sibling packages
+# from source during development. Published wheels use the version pins declared in each
+# member's [project.dependencies] (e.g. ruleatlas-contracts>=0.1.0); the `workspace = true`
+# sources below are dev-only and are ignored when building distributions.
+
+[tool.uv.workspace]
+members = [
+  "contracts",
+  "persistence",
+  "discovery-core",
+  "claims",
+  "extraction",
+  "exports",
+  "ai",
+  "demo",
+]

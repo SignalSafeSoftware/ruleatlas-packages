@@ -1,0 +1,73 @@
+name: packages-ci
+
+# CI for the RuleAtlas packages repository (this directory becomes the repo root).
+# Each Python package is linted, type-checked, tested, and built standalone from the uv
+# workspace; the TypeScript discovery-ui package is built and tested with yarn.
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package: [contracts, persistence, discovery-core, claims, extraction, exports, ai, demo]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+      - name: Sync (${{ matrix.package }})
+        working-directory: ${{ matrix.package }}
+        run: uv sync --extra dev
+      - name: Ruff (${{ matrix.package }})
+        working-directory: ${{ matrix.package }}
+        run: uv run ruff check src
+      - name: Mypy (${{ matrix.package }}, if configured)
+        working-directory: ${{ matrix.package }}
+        run: if grep -q '\[tool.mypy\]' pyproject.toml; then uv run mypy src; else echo "no mypy config - skipping"; fi
+      - name: Pytest (${{ matrix.package }})
+        working-directory: ${{ matrix.package }}
+        run: uv run python -m pytest -q
+      - name: Build wheel + sdist (${{ matrix.package }})
+        working-directory: ${{ matrix.package }}
+        run: uv build
+
+  import-linter:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+      - name: Sync workspace
+        run: uv sync --all-extras
+      - name: Enforce cross-package DAG
+        run: uv run --with 'import-linter<2.0' lint-imports --config .importlinter
+
+  discovery-ui:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install
+        working-directory: discovery-ui
+        run: yarn install --frozen-lockfile || yarn install
+      - name: Typecheck
+        working-directory: discovery-ui
+        run: yarn typecheck
+      - name: Test
+        working-directory: discovery-ui
+        run: yarn test

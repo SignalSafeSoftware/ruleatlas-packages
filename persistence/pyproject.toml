@@ -7,18 +7,19 @@ name = "ruleatlas-persistence"
 dynamic = ["version"]
 description = "RuleAtlas persistence layer: SQLAlchemy ORM models, repositories, and the declarative Base shared by every context that reads or writes the database"
 readme = "README.md"
-license = { text = "Proprietary" }
+license = { text = "MIT" }
 requires-python = ">=3.12"
 authors = [{ name = "RuleAtlas" }]
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.12",
   "Typing :: Typed",
 ]
 dependencies = [
-  "ruleatlas-contracts",
+  "ruleatlas-contracts>=0.1.0",
   "sqlalchemy>=2.0",
   # Pin to match apps/api (^0.1.8): 0.2.0 changed the RepositoryFactory protocol signatures.
   "sqlphilosophy>=0.1.8,<0.2.0",
@@ -28,7 +29,7 @@ dependencies = [
 dev = ["pytest>=8.3.0", "build>=1.2.0", "twine>=5.0.0", "ruff>=0.5.0", "mypy>=1.11.0"]
 
 [tool.uv.sources]
-ruleatlas-contracts = { path = "../contracts", editable = true }
+ruleatlas-contracts = { workspace = true }
 
 [project.urls]
 Repository = "https://github.com/SignalSafeSoftware/ruleatlas"

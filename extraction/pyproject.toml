@@ -7,20 +7,21 @@ name = "ruleatlas-extraction"
 dynamic = ["version"]
 description = "RuleAtlas heuristic + BDD + comment/scaffold rule-candidate extraction from source files"
 readme = "README.md"
-license = { text = "Proprietary" }
+license = { text = "MIT" }
 requires-python = ">=3.12"
 authors = [{ name = "RuleAtlas" }]
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.12",
   "Typing :: Typed",
 ]
 dependencies = [
-  "ruleatlas-contracts",
-  "ruleatlas-discovery",
-  "ruleatlas-persistence",
+  "ruleatlas-contracts>=0.1.0",
+  "ruleatlas-discovery>=0.1.0",
+  "ruleatlas-persistence>=0.1.0",
   "sqlalchemy>=2.0",
   "pydantic>=2.8",
   "gherkin-official>=41.0",
@@ -31,9 +32,9 @@ dev = ["pytest>=8.3.0", "build>=1.2.0", "twine>=5.0.0", "ruff>=0.5.0", "mypy>=1.
 
 # Local (in-repo) resolution of the sibling packages for uv-based development.
 [tool.uv.sources]
-ruleatlas-contracts = { path = "../contracts", editable = true }
-ruleatlas-discovery = { path = "../discovery-core", editable = true }
-ruleatlas-persistence = { path = "../persistence", editable = true }
+ruleatlas-contracts = { workspace = true }
+ruleatlas-discovery = { workspace = true }
+ruleatlas-persistence = { workspace = true }
 
 [project.urls]
 Repository = "https://github.com/SignalSafeSoftware/ruleatlas"

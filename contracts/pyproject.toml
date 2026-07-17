@@ -7,12 +7,13 @@ name = "ruleatlas-contracts"
 dynamic = ["version"]
 description = "RuleAtlas shared kernel: enums, domain value objects, and provider/claim contracts depended on by every other package"
 readme = "README.md"
-license = { text = "Proprietary" }
+license = { text = "MIT" }
 requires-python = ">=3.12"
 authors = [{ name = "RuleAtlas" }]
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.12",
   "Typing :: Typed",

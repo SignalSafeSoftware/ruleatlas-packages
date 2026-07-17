@@ -34,6 +34,10 @@
     "typescript": "6.0.3",
     "vitest": "4.1.9"
   },
-  "license": "UNLICENSED",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/SignalSafeSoftware/ruleatlas"
+  },
   "private": false
 }

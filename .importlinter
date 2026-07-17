@@ -1,0 +1,24 @@
+# Cross-package DAG for the standalone packages repo. Each layer may import only the layers
+# below it; siblings joined by "|" must not import each other. Mirrors the contract embedded
+# in the monorepo's apps/api/.importlinter, but rooted only at the packages.
+
+[importlinter]
+root_packages =
+    ruleatlas_contracts
+    ruleatlas_persistence
+    ruleatlas_discovery
+    ruleatlas_claims
+    ruleatlas_extraction
+    ruleatlas_exports
+    ruleatlas_ai
+    ruleatlas_demo
+
+[importlinter:contract:package-dag]
+name = Package DAG (contracts kernel at the base; contexts above; no upward or cross-context imports)
+type = layers
+layers =
+    ruleatlas_demo
+    ruleatlas_ai | ruleatlas_exports
+    ruleatlas_claims | ruleatlas_extraction
+    ruleatlas_persistence | ruleatlas_discovery
+    ruleatlas_contracts

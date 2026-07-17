@@ -7,12 +7,13 @@ name = "ruleatlas-demo"
 dynamic = ["version"]
 description = "RuleAtlas demo/seed data generators (development only; no runtime code depends on this)"
 readme = "README.md"
-license = { text = "Proprietary" }
+license = { text = "MIT" }
 requires-python = ">=3.12"
 authors = [{ name = "RuleAtlas" }]
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.12",
   "Typing :: Typed",
@@ -20,24 +21,24 @@ classifiers = [
 # Leaf package: depends on the others so it can seed realistic data; NOTHING depends on it. It is intended
 # to be installed only as a dev/demo extra of apps/api, never in a production image.
 dependencies = [
-  "ruleatlas-contracts",
-  "ruleatlas-discovery",
-  "ruleatlas-extraction",
-  "ruleatlas-claims",
-  "ruleatlas-ai",
-  "ruleatlas-exports",
+  "ruleatlas-contracts>=0.1.0",
+  "ruleatlas-discovery>=0.1.0",
+  "ruleatlas-extraction>=0.1.0",
+  "ruleatlas-claims>=0.1.0",
+  "ruleatlas-ai>=0.1.0",
+  "ruleatlas-exports>=0.1.0",
 ]
 
 [project.optional-dependencies]
 dev = ["pytest>=8.3.0", "build>=1.2.0", "twine>=5.0.0", "ruff>=0.5.0", "mypy>=1.11.0"]
 
 [tool.uv.sources]
-ruleatlas-contracts = { path = "../contracts", editable = true }
-ruleatlas-discovery = { path = "../discovery-core", editable = true }
-ruleatlas-extraction = { path = "../extraction", editable = true }
-ruleatlas-claims = { path = "../claims", editable = true }
-ruleatlas-ai = { path = "../ai", editable = true }
-ruleatlas-exports = { path = "../exports", editable = true }
+ruleatlas-contracts = { workspace = true }
+ruleatlas-discovery = { workspace = true }
+ruleatlas-extraction = { workspace = true }
+ruleatlas-claims = { workspace = true }
+ruleatlas-ai = { workspace = true }
+ruleatlas-exports = { workspace = true }
 
 [project.urls]
 Repository = "https://github.com/SignalSafeSoftware/ruleatlas"
