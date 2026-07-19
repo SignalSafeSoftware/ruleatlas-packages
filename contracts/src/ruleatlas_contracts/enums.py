@@ -107,6 +107,7 @@ class ScanStage(StrEnum):
     PREPARING_SOURCE = "preparing_source"
     INVENTORYING_FILES = "inventorying_files"
     CLASSIFYING_FILES = "classifying_files"
+    STRUCTURAL_ANALYSIS = "structural_analysis"
     EXTRACTING_RULES = "extracting_rules"
     NORMALIZING_CLAIMS = "normalizing_claims"
     DETECTING_CONFLICTS = "detecting_conflicts"
