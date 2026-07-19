@@ -221,6 +221,7 @@ class EvidenceSourceType(StrEnum):
     AUDIT_LOG = "audit_log"
     DOMAIN_EVENT_LOG = "domain_event_log"
     TRACE_SPAN = "trace_span"
+    STATIC_ANALYSIS = "static_analysis"
     AI_EXTRACTION = "ai_extraction"
 
 

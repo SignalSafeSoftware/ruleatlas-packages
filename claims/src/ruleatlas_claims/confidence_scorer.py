@@ -24,6 +24,10 @@ DEFAULT_SOURCE_WEIGHTS: dict[str, float] = {
     EvidenceSourceType.API_CONTRACT.value: 0.75,
     EvidenceSourceType.README_DOC.value: 0.7,
     EvidenceSourceType.DESIGN_DOC.value: 0.7,
+    # Static-analysis (Semgrep/tree-sitter) findings corroborate the implementation but are lower
+    # fidelity than reading the code and must stay below code/test weights (trust model: observations
+    # support, they do not confirm product intent). See STATIC_ANALYSIS_SOURCE_TYPES below.
+    EvidenceSourceType.STATIC_ANALYSIS.value: 0.6,
     EvidenceSourceType.COVERAGE_REPORT.value: 0.5,
     EvidenceSourceType.RUNTIME_LOG.value: 0.45,
     EvidenceSourceType.CODE_COMMENT.value: 0.35,
@@ -48,6 +52,11 @@ DOC_SOURCE_TYPES = {
     EvidenceSourceType.TICKET,
 }
 COMMENT_SOURCE_TYPES = {EvidenceSourceType.CODE_COMMENT}
+# Structural static-analysis findings (Semgrep/tree-sitter). Corroborating implementation evidence,
+# scored below real code so it can raise a candidate's confidence without ever confirming it alone.
+STATIC_ANALYSIS_SOURCE_TYPES = {EvidenceSourceType.STATIC_ANALYSIS}
+# Extra dampening applied on top of the source weight so static analysis never rivals reading the code.
+STATIC_ANALYSIS_CORROBORATION_FACTOR = 0.8
 AI_CONFIDENCE_CAP = 0.45
 
 __all__ = [
@@ -57,6 +66,8 @@ __all__ = [
     "DEFAULT_SOURCE_WEIGHTS",
     "DOC_SOURCE_TYPES",
     "IMPLEMENTATION_SOURCE_TYPES",
+    "STATIC_ANALYSIS_CORROBORATION_FACTOR",
+    "STATIC_ANALYSIS_SOURCE_TYPES",
     "TEST_SOURCE_TYPES",
     "ConfidenceBreakdown",
     "EvidenceView",
@@ -137,6 +148,7 @@ def _score_evidence_row(
     test_scores: list[float],
     doc_scores: list[float],
     ai_scores: list[float],
+    static_scores: list[float],
 ) -> None:
     weight = _weight_for(ev.source_type, overrides)
     score = _clamp(ev.confidence_score if ev.confidence_score <= 1 else ev.confidence_score / 100)
@@ -145,6 +157,14 @@ def _score_evidence_row(
     if source in IMPLEMENTATION_SOURCE_TYPES:
         impl_scores.append(score)
         breakdown.explanations.append(f"Implementation evidence from {ev.reference_path}")
+        return
+    if source in STATIC_ANALYSIS_SOURCE_TYPES:
+        # Kept separate from the implementation average so corroboration can only *raise* confidence
+        # (added as a capped boost below), never dilute a well-evidenced rule.
+        static_scores.append(score)
+        breakdown.explanations.append(
+            f"Static-analysis corroboration from {ev.reference_path} (supports, not confirmation)"
+        )
         return
     if source in TEST_SOURCE_TYPES:
         if is_scaffold_evidence_text(ev.claim_text, ev.snippet):
@@ -167,6 +187,21 @@ def _score_evidence_row(
     if source in AI_SOURCE_TYPES:
         ai_scores.append(min(score, AI_CONFIDENCE_CAP))
         breakdown.explanations.append("AI candidate evidence (capped; not confirmation)")
+
+
+def _apply_static_analysis(impl_confidence: float, static_scores: list[float], *, has_impl: bool) -> float:
+    """Fold static-analysis corroboration into implementation confidence.
+
+    When real implementation evidence exists, static analysis is a **capped additive boost** (it can
+    only raise, never dilute). When a candidate has *only* static-analysis evidence, it is counted but
+    dampened so it can never confirm a rule on its own (trust model: observations support, not confirm).
+    """
+    if not static_scores:
+        return impl_confidence
+    static_avg = _avg(static_scores)
+    if has_impl:
+        return impl_confidence + min(static_avg * 0.25, 0.15)
+    return static_avg * STATIC_ANALYSIS_CORROBORATION_FACTOR
 
 
 def _apply_coverage_runtime(
@@ -192,6 +227,7 @@ def score_rule_confidence(inputs: RuleConfidenceInputs) -> ConfidenceBreakdown:
     test_scores: list[float] = []
     doc_scores: list[float] = []
     ai_scores: list[float] = []
+    static_scores: list[float] = []
 
     for ev in inputs.evidence:
         _score_evidence_row(
@@ -202,9 +238,12 @@ def score_rule_confidence(inputs: RuleConfidenceInputs) -> ConfidenceBreakdown:
             test_scores=test_scores,
             doc_scores=doc_scores,
             ai_scores=ai_scores,
+            static_scores=static_scores,
         )
 
-    breakdown.implementation_confidence = _clamp(_avg(impl_scores))
+    breakdown.implementation_confidence = _clamp(
+        _apply_static_analysis(_avg(impl_scores), static_scores, has_impl=bool(impl_scores))
+    )
     breakdown.test_confidence = _clamp(_avg(test_scores))
     breakdown.documentation_confidence = _clamp(_avg(doc_scores))
     breakdown.product_intent_confidence = _clamp(_avg(doc_scores + [s * 0.5 for s in ai_scores]))
