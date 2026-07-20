@@ -138,10 +138,12 @@ class ProjectAnalysisResetRepository:
         counts["ai_task_runs"] = self._delete(
             delete(AiTaskRun).where(AiTaskRun.project_id == project_id)
         )
+        # Rules reference analysis_versions (rules_analysis_version_id_fkey), so they must
+        # be removed before the versions themselves.
+        counts["rules"] = self._delete(delete(Rule).where(Rule.project_id == project_id))
         counts["analysis_versions"] = self._delete(
             delete(AnalysisVersion).where(AnalysisVersion.project_id == project_id)
         )
-        counts["rules"] = self._delete(delete(Rule).where(Rule.project_id == project_id))
         return counts
 
     def _delete(self, statement: Any) -> int:
