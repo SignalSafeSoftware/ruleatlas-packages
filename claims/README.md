@@ -14,7 +14,7 @@ confirmed rule.
 
 | Module | Contents |
 | --- | --- |
-| `confidence_scorer.py` | Model-free confidence scoring: DTOs (`RuleConfidenceInputs`, `EvidenceView`) + `score_rule_confidence` (kernel deps only) |
+| `confidence_scorer.py` | Model-free confidence scoring: DTOs (`RuleConfidenceInputs`, `EvidenceView`) + `score_rule_confidence` (kernel deps only). Static-analysis evidence is a weighted corroborating source (below code/tests; never confirming alone). |
 | `relationship_suggester.py` | Pure relationship heuristics + DTOs (`RuleView`, `EvidenceView`, `SuggestionCandidate`, `suggest_deterministic_relationships`, `filter_best_candidates`) |
 | `text_normalize.py` | `normalize_rule_text` — language-agnostic token normalization for clustering/dedup |
 

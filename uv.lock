@@ -1139,7 +1139,7 @@ requires-dist = [
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.5.0" },
     { name = "ruleatlas-contracts", editable = "contracts" },
     { name = "sqlalchemy", specifier = ">=2.0" },
-    { name = "sqlphilosophy", specifier = ">=0.1.8,<0.2.0" },
+    { name = "sqlphilosophy", specifier = ">=0.2.0,<0.3.0" },
     { name = "twine", marker = "extra == 'dev'", specifier = ">=5.0.0" },
 ]
 provides-extras = ["dev"]
@@ -1155,6 +1155,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/1c/03/e834bcd866f2f8a49a85eaff47340affa3bfa391ee9912a952a1faa68c7b/secretstorage-3.5.0.tar.gz", hash = "sha256:f04b8e4689cbce351744d5537bf6b1329c6fc68f91fa666f60a380edddcd11be", size = 19884, upload-time = "2025-11-23T19:02:53.191Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b7/46/f5af3402b579fd5e11573ce652019a67074317e18c1935cc0b4ba9b35552/secretstorage-3.5.0-py3-none-any.whl", hash = "sha256:0ce65888c0725fcb2c5bc0fdb8e5438eece02c523557ea40ce0703c266248137", size = 15554, upload-time = "2025-11-23T19:02:51.545Z" },
+]
+
+[[package]]
+name = "servicephilosophy"
+version = "0.1.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/d0/f6/54f2196bd9909ce3217854ed89073971ef6e765591e134d6fc6ac6aefad4/servicephilosophy-0.1.0.tar.gz", hash = "sha256:c6fc92e5dcced8fbf2c3482644cea2b4074a7b7ce9f73883fd6788cad4aad938", size = 5322, upload-time = "2026-07-10T03:01:11.504Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/3c/be/b69cdbc5606e8ffcf507cae7535f5a690ea6d4afe618f6812c690d4be31c/servicephilosophy-0.1.0-py3-none-any.whl", hash = "sha256:7e35b11afe06545182b8e65f0d09603c3953918d14311bc1a38aad3ee7c78578", size = 5740, upload-time = "2026-07-10T03:01:10.37Z" },
 ]
 
 [[package]]
@@ -1200,14 +1209,15 @@ wheels = [
 
 [[package]]
 name = "sqlphilosophy"
-version = "0.1.9"
+version = "0.2.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
+    { name = "servicephilosophy" },
     { name = "sqlalchemy" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/5f/06/35b56b6b8dae949792287c654d49a7c88fd93e386897474e6776e4a36603/sqlphilosophy-0.1.9.tar.gz", hash = "sha256:16b9ffa29727458b6abdc7c1ee26f20737c80c318d0a7605014e3fa63e384428", size = 28177, upload-time = "2026-07-09T19:57:23.795Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/91/42/0b784623adc34ac3b115e6590e22af9ccfe0b702a2551097ffdb787cac77/sqlphilosophy-0.2.0.tar.gz", hash = "sha256:f383c27b52d51530cec68742cac6958f7809a47133808b5c76a185e7da3399f6", size = 28617, upload-time = "2026-07-10T03:44:41.074Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a6/de/0e03b449f72fde35b33971e986bc23a6ec2888f3e9b18b9a03ed4fdba2f8/sqlphilosophy-0.1.9-py3-none-any.whl", hash = "sha256:1a21eddd486a08fbc092d5645173a3bca99b6b971cebcd6454d8748678ccde9d", size = 32728, upload-time = "2026-07-09T19:57:22.569Z" },
+    { url = "https://files.pythonhosted.org/packages/7f/22/d4d8f4a6007935070027330326603cd1e7f782dc8b1237386b7c2f6acf63/sqlphilosophy-0.2.0-py3-none-any.whl", hash = "sha256:d25e01291188d66a3c3ce15750267be4af5032507501f0abab0746502454314a", size = 33119, upload-time = "2026-07-10T03:44:39.88Z" },
 ]
 
 [[package]]

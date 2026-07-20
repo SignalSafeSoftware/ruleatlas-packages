@@ -21,8 +21,9 @@ classifiers = [
 dependencies = [
   "ruleatlas-contracts>=0.1.0",
   "sqlalchemy>=2.0",
-  # Pin to match apps/api (^0.1.8): 0.2.0 changed the RepositoryFactory protocol signatures.
-  "sqlphilosophy>=0.1.8,<0.2.0",
+  # 0.2.0: RepositoryFactory.repository returns BaseRepositoryProtocol[T, RepositoryFactory]
+  # (factory is required on the protocol; ServiceRepository provides .factory/.maybe_factory/.has_factory).
+  "sqlphilosophy>=0.2.0,<0.3.0",
 ]
 
 [project.optional-dependencies]

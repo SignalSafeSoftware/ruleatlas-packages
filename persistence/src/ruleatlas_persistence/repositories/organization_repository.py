@@ -44,11 +44,10 @@ class OrganizationRepository(BaseRepository[Organization, "RepositoryFactory"]):
         )
 
     def list_members_with_role(self, organization_id: str) -> list[tuple[User, str]]:
-        factory = cast("RepositoryFactory", self._factory)
         return cast(
             list[tuple[User, str]],
             self._session.execute(
-                factory.users()
+                self.factory.users()
                 .statement()
                 .select_columns(User, OrganizationMembership.role)
                 .join(
@@ -79,9 +78,8 @@ class OrganizationRepository(BaseRepository[Organization, "RepositoryFactory"]):
         return cast(list[str], self.statement().select_columns(Organization.id).scalars().all())
 
     def count_memberships(self, organization_id: str) -> int:
-        factory = cast("RepositoryFactory", self._factory)
         return (
-            factory.repository(OrganizationMembership)
+            self.factory.repository(OrganizationMembership)
             .statement()
             .where(OrganizationMembership.organization_id == organization_id)
             .count()
@@ -90,9 +88,8 @@ class OrganizationRepository(BaseRepository[Organization, "RepositoryFactory"]):
     def list_users_by_emails(self, emails: set[str]) -> list[User]:
         if not emails:
             return []
-        factory = cast("RepositoryFactory", self._factory)
         return list(
-            factory.users()
+            self.factory.users()
             .statement()
             .where(User.email.in_(emails))
             .scalars()

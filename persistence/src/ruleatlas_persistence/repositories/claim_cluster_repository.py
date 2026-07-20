@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 from sqlalchemy.orm import Session
 from sqlphilosophy.sync.repository import BaseRepository
@@ -137,9 +137,8 @@ class ClaimClusterRepository(BaseRepository[ClaimCluster, "RepositoryFactory"]):
         model_key: str,
         model_version: str,
     ) -> ClaimEmbedding | None:
-        factory = cast("RepositoryFactory", self._factory)
         return (
-            factory.repository(ClaimEmbedding)
+            self.factory.repository(ClaimEmbedding)
             .statement()
             .where(
                 ClaimEmbedding.analysis_version_id == analysis_version_id,

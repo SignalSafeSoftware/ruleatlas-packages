@@ -35,9 +35,8 @@ class PermissionRepository(BaseRepository[ProjectMembership, "RepositoryFactory"
         return list(self.statement().where(ProjectMembership.project_id == project_id).scalars().all())
 
     def list_members_with_user(self, project_id: str) -> list[tuple[User, str]]:
-        factory = cast("RepositoryFactory", self._factory)
         rows = self._session.execute(
-            factory.users()
+            self.factory.users()
             .statement()
             .select_columns(User, ProjectMembership.role)
             .join(ProjectMembership, ProjectMembership.user_id == User.id)

@@ -187,13 +187,13 @@ class RepositoryFactory(SqlPhilosophyRepositoryFactory):
         self._typed_repos[repo_class] = created
         return created
 
-    def repository(self, model: type[T]) -> BaseRepositoryProtocol[T, SqlPhilosophyRepositoryFactory | None]:
+    def repository(self, model: type[T]) -> BaseRepositoryProtocol[T, SqlPhilosophyRepositoryFactory]:
         cached = self._model_repos.get(model)
         if cached is not None:
-            return cast(BaseRepositoryProtocol[T, SqlPhilosophyRepositoryFactory | None], cached)
+            return cast(BaseRepositoryProtocol[T, SqlPhilosophyRepositoryFactory], cached)
         created: BaseRepository[DeclarativeBase, RepositoryFactory] = BaseRepository(model, self._session, factory=self)
         self._model_repos[model] = created
-        return cast(BaseRepositoryProtocol[T, SqlPhilosophyRepositoryFactory | None], created)
+        return cast(BaseRepositoryProtocol[T, SqlPhilosophyRepositoryFactory], created)
 
     def projects(self) -> ProjectRepository:
         return self.get_repository(ProjectRepository)

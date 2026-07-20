@@ -33,6 +33,7 @@ prerequisite for "filling the packages."
 | All ORM models (`core`, `scanning`, `rules`, `ai`, `graph_claims`, `tickets`) | Business logic / services / orchestration → context packages / `apps/api` |
 | `enum_column` helpers, `TimestampMixin`, `now_utc`/`uuid_str` | FastAPI routes, request/response schemas → `apps/api` |
 | `sqlphilosophy` repositories + `RepositoryFactory` | Alembic migrations (env + versions) → stay in `apps/api` |
+| Factory-aware SQL repos (`.factory` / `.maybe_factory` / `.has_factory`) | — |
 | Append-only audit event listeners | Anything that imports an `application`/`api` module |
 
 ### Why `session` stays in `apps/api`
@@ -90,7 +91,10 @@ export rows in 5 methods — an app/export concern, not a pure repository, so it
 
 Result: the package imports **only** `ruleatlas-contracts` + SQLAlchemy + `sqlphilosophy` — verified by the
 package's own CI job (`uv run mypy src`, which fails on any leaked `ruleatlas.application`/`ruleatlas.api` import).
-`sqlphilosophy` is pinned `>=0.1.8,<0.2.0` to match `apps/api` (0.2.0 changed the `RepositoryFactory` protocol).
+`sqlphilosophy` is pinned `>=0.2.0,<0.3.0`. In 0.2.0, `BaseRepository` inherits factory accessors from
+`servicephilosophy.ServiceRepository` (`.factory`, `.maybe_factory`, `.has_factory`), and
+`RepositoryFactory.repository()` returns `BaseRepositoryProtocol[T, RepositoryFactory]` (factory required on
+the protocol type parameter — not optional).
 
 ### How the move stayed safe
 
