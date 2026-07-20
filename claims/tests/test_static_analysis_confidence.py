@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import math
+
 from ruleatlas_contracts.enums import EvidenceSourceType, RuleStatus
 
 from ruleatlas_claims.confidence_scorer import (
@@ -23,7 +25,7 @@ def _ev(source_type: EvidenceSourceType, score: float = 0.9) -> EvidenceView:
 
 def test_static_analysis_is_weighted_below_code_and_tests() -> None:
     w = DEFAULT_SOURCE_WEIGHTS
-    assert w[EvidenceSourceType.STATIC_ANALYSIS.value] == 0.6
+    assert math.isclose(w[EvidenceSourceType.STATIC_ANALYSIS.value], 0.6)
     assert w[EvidenceSourceType.STATIC_ANALYSIS.value] < w[EvidenceSourceType.BACKEND_CODE.value]
     assert w[EvidenceSourceType.STATIC_ANALYSIS.value] < w[EvidenceSourceType.UNIT_TEST.value]
     assert EvidenceSourceType.STATIC_ANALYSIS in STATIC_ANALYSIS_SOURCE_TYPES
