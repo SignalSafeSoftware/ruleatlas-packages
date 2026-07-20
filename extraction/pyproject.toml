@@ -24,7 +24,7 @@ dependencies = [
   "ruleatlas-persistence>=0.1.0",
   "sqlalchemy>=2.0",
   "pydantic>=2.8",
-  "gherkin-official>=41.0",
+  "gherkin-official>=42.0.0",
 ]
 
 [project.optional-dependencies]

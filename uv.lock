@@ -266,14 +266,14 @@ wheels = [
 
 [[package]]
 name = "gherkin-official"
-version = "41.0.0"
+version = "42.0.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/4c/4f/525b5a98134a47e5009d910ed60e7e046d55be35796e34b6997ebf4d8241/gherkin_official-41.0.0.tar.gz", hash = "sha256:3e63a45c6daa43a25b159cdfd84c9703c2956c0736fe42119501a441c151b3db", size = 33992, upload-time = "2026-06-20T07:06:30.064Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/b8/3d/ebe0670376750591a964080cc111b1720d54981379bb184656560687c3b9/gherkin_official-42.0.0.tar.gz", hash = "sha256:2ae52b6d510bfa78b70bde7ceb1f2afd59e28fa36c7ddbdacc96db2b65f5978f", size = 35273, upload-time = "2026-07-19T16:53:54.877Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/45/f5/2a8c9bc5a0e281f44d96316466e9181c2684e4f67154009a81948fab90d9/gherkin_official-41.0.0-py3-none-any.whl", hash = "sha256:e8c4ea8fee8350f22eacdf13ea5ac16e84273f95839b7c3fac600c3a4f1daca3", size = 38823, upload-time = "2026-06-20T07:06:28.812Z" },
+    { url = "https://files.pythonhosted.org/packages/69/e6/10f0f4ef66fd4fbe49dbeee8087bb206b956d1b54cd208ffce1e3020d300/gherkin_official-42.0.0-py3-none-any.whl", hash = "sha256:7f95d926878bbfde2a0414683f88029b9dc7feba5a6c27ca26f2cf58edd482c4", size = 40038, upload-time = "2026-07-19T16:53:53.945Z" },
 ]
 
 [[package]]
@@ -1100,7 +1100,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "build", marker = "extra == 'dev'", specifier = ">=1.2.0" },
-    { name = "gherkin-official", specifier = ">=41.0" },
+    { name = "gherkin-official", specifier = ">=42.0.0" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.11.0" },
     { name = "pydantic", specifier = ">=2.8" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3.0" },
