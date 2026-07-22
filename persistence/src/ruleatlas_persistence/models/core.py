@@ -67,6 +67,7 @@ class User(Base, TimestampMixin):
     organization_memberships: Mapped[list[OrganizationMembership]] = relationship(back_populates="user")
     password_reset_tokens: Mapped[list[PasswordResetToken]] = relationship(back_populates="user")
     project_memberships: Mapped[list[ProjectMembership]] = relationship(back_populates="user")
+    external_identities: Mapped[list[ExternalIdentity]] = relationship(back_populates="user")
     sent_invites: Mapped[list[UserInvite]] = relationship(
         back_populates="invited_by",
         foreign_keys="UserInvite.invited_by_user_id",
@@ -101,6 +102,25 @@ class UserSession(Base):
     ip_address: Mapped[str | None] = mapped_column(String(64))
 
     user: Mapped[User] = relationship(back_populates="sessions")
+
+
+class ExternalIdentity(Base, TimestampMixin):
+    """Links a RuleAtlas user to an external OAuth identity (e.g. GitHub login)."""
+
+    __tablename__ = "external_identities"
+    __table_args__ = (
+        UniqueConstraint("provider", "provider_user_id", name="uq_external_identities_provider_subject"),
+        UniqueConstraint("provider", "user_id", name="uq_external_identities_provider_user"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
+    user_id: Mapped[str] = mapped_column(ForeignKey(FK_USERS_ID, ondelete="CASCADE"), nullable=False, index=True)
+    provider: Mapped[str] = mapped_column(String(32), nullable=False)
+    provider_user_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    provider_login: Mapped[str | None] = mapped_column(String(200))
+    provider_email: Mapped[str | None] = mapped_column(String(320))
+
+    user: Mapped[User] = relationship(back_populates="external_identities")
 
 
 class ApiToken(Base):

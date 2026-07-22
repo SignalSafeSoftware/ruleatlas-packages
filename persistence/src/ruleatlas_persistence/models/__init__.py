@@ -15,6 +15,7 @@ from .ai import (
 )
 from .core import (
     ApiToken,
+    ExternalIdentity,
     Organization,
     OrganizationMembership,
     PasswordResetToken,
@@ -128,6 +129,7 @@ __all__ = [
     "CoverageLine",
     "CoverageReport",
     "ExportDocument",
+    "ExternalIdentity",
     "ExternalTicket",
     "FileTypeMapping",
     "GraphCommunity",

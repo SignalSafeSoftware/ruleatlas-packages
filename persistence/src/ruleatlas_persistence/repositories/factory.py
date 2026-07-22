@@ -150,6 +150,7 @@ from ruleatlas_persistence.repositories.ticket_repository import (
     TicketSyncCursorRepository,
     TicketWebhookDeliveryRepository,
 )
+from ruleatlas_persistence.repositories.external_identity_repository import ExternalIdentityRepository
 from ruleatlas_persistence.repositories.user_invite_repository import UserInviteRepository
 from ruleatlas_persistence.repositories.user_repository import UserRepository
 from ruleatlas_persistence.repositories.user_session_repository import UserSessionRepository
@@ -272,6 +273,9 @@ class RepositoryFactory(SqlPhilosophyRepositoryFactory):
 
     def users(self) -> UserRepository:
         return self.get_repository(UserRepository)
+
+    def external_identities(self) -> ExternalIdentityRepository:
+        return self.get_repository(ExternalIdentityRepository)
 
     def user_sessions(self) -> UserSessionRepository:
         return self.get_repository(UserSessionRepository)
