@@ -94,6 +94,8 @@ class DiscoveryInventoryQueryBuilder:
             return SourceFile.line_count
         if sort == "code_line_count":
             return SourceFile.code_line_count
+        if sort == "token_count":
+            return SourceFile.token_count
         if sort == "classification":
             return SourceFile.classification
         return SourceFile.language
@@ -165,6 +167,8 @@ class DiscoveryInventoryQueryBuilder:
             return (int(row.get("line_count") or 0), path)
         if sort == "code_line_count":
             return (int(row.get("code_line_count") or 0), path)
+        if sort == "token_count":
+            return (int(row.get("token_count") or 0), path)
         if sort == "classification":
             return (str(row.get("classification") or ""), path)
         return (str(row.get("language") or ""), path)

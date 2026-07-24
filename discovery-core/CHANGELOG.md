@@ -4,6 +4,12 @@ All notable changes to `ruleatlas-discovery` are documented here. The format fol
 [Keep a Changelog](https://keepachangelog.com/) and the project uses semantic versioning.
 The version is sourced from `src/ruleatlas_discovery/version.py`.
 
+## [0.1.1] - 2026-07-24
+
+### Added
+- `token_count` on `DiscoveryFile` and in-memory `DirectoryNode`, aggregated by
+  `build_directory_tree` (prefer stored model counts; otherwise `ceil(size_bytes / 4)`).
+
 ## [0.1.0] - 2026-07-16
 
 ### Added

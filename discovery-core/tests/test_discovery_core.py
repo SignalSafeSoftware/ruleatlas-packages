@@ -284,6 +284,32 @@ def test_directory_tree() -> None:
     assert tree[0].folders_count == 1
 
 
+def test_directory_tree_aggregates_token_count() -> None:
+    files = [
+        DiscoveryFile(
+            path="src/a.py",
+            display_path="src/a.py",
+            size_bytes=400,
+            token_count=42,
+            line_count=10,
+            code_lines=8,
+        ),
+        DiscoveryFile(
+            path="src/lib/b.py",
+            display_path="src/lib/b.py",
+            size_bytes=100,
+            token_count=None,
+            line_count=5,
+            code_lines=4,
+        ),
+    ]
+    tree = build_directory_tree(files)
+    assert tree[0].token_count == 67  # 42 + ceil(100 / 4)
+    lib_folder = next(child for child in tree[0].children if child.name == "lib")
+    assert lib_folder.token_count == 25
+    assert lib_folder.children[0].token_count == 25
+
+
 def test_directory_tree_root_file() -> None:
     tree = build_directory_tree([DiscoveryFile(path="README.md", display_path="README.md", line_count=3)])
     assert len(tree) == 1

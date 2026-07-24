@@ -73,6 +73,7 @@ class DiscoveryFile:
     code_lines: int | None = None
     comment_lines: int | None = None
     blank_lines: int | None = None
+    token_count: int | None = None
     file_id: str | None = None
 
     @property
@@ -128,6 +129,7 @@ class DirectoryNode:
     folders_count: int = 0
     files_count: int = 0
     size_bytes: int = 0
+    token_count: int = 0
     code_lines: int = 0
     comment_lines: int = 0
     blank_lines: int = 0

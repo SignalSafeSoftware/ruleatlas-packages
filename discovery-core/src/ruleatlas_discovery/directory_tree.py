@@ -37,6 +37,15 @@ def _line_value(value: int | None) -> int:
     return value if isinstance(value, int) and value >= 0 else 0
 
 
+def _token_value(row: DiscoveryFile) -> int:
+    """Prefer persisted model token counts; fall back to ceil(size_bytes / 4)."""
+    stored = row.token_count
+    if isinstance(stored, int) and stored >= 0:
+        return stored
+    size_bytes = int(row.size_bytes or 0)
+    return (size_bytes + 3) // 4 if size_bytes > 0 else 0
+
+
 def _folder_key(parent_path: str, name: str) -> str:
     if not parent_path:
         return name
@@ -60,6 +69,7 @@ def _file_to_node(row: DiscoveryFile, *, name: str, depth: int) -> DirectoryNode
         folders_count=0,
         files_count=1,
         size_bytes=int(row.size_bytes or 0),
+        token_count=_token_value(row),
         code_lines=_line_value(row.code_lines),
         comment_lines=_line_value(row.comment_lines),
         blank_lines=_line_value(row.blank_lines),
@@ -88,6 +98,7 @@ def _finalize_folder(folder: _MutableFolder) -> DirectoryNode:
     files_count = sum(child.files_count for child in children)
     folders_count = sum(1 for child in children if child.kind == NodeKind.FOLDER)
     size_bytes = sum(child.size_bytes for child in children)
+    token_count = sum(child.token_count for child in children)
     code_lines = sum(child.code_lines for child in children)
     comment_lines = sum(child.comment_lines for child in children)
     blank_lines = sum(child.blank_lines for child in children)
@@ -103,6 +114,7 @@ def _finalize_folder(folder: _MutableFolder) -> DirectoryNode:
         folders_count=folders_count,
         files_count=files_count,
         size_bytes=size_bytes,
+        token_count=token_count,
         code_lines=code_lines,
         comment_lines=comment_lines,
         blank_lines=blank_lines,

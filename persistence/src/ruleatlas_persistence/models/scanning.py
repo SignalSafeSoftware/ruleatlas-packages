@@ -198,6 +198,9 @@ class SourceFile(Base, TimestampMixin):
     line_count_method: Mapped[str | None] = mapped_column(String(32))
     production_bucket: Mapped[str | None] = mapped_column(String(64))
     language: Mapped[str | None] = mapped_column(String(64))
+    token_count: Mapped[int | None] = mapped_column(Integer)
+    token_count_method: Mapped[str | None] = mapped_column(String(64))
+    token_model: Mapped[str | None] = mapped_column(String(128))
     scanned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
@@ -233,6 +236,7 @@ class SourceTreeNode(Base, TimestampMixin):
     files_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     child_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     size_bytes: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    token_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     code_line_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     comment_line_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     blank_line_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
