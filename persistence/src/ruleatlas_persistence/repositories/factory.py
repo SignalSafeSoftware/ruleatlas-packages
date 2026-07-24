@@ -65,6 +65,7 @@ from ruleatlas_persistence.repositories.entitlement_repository import Entitlemen
 from ruleatlas_persistence.repositories.export_report_query_builder import (
     ExportReportQueryBuilder,
 )
+from ruleatlas_persistence.repositories.external_identity_repository import ExternalIdentityRepository
 from ruleatlas_persistence.repositories.file_type_mapping_repository import (
     FileTypeMappingRepository,
 )
@@ -150,7 +151,6 @@ from ruleatlas_persistence.repositories.ticket_repository import (
     TicketSyncCursorRepository,
     TicketWebhookDeliveryRepository,
 )
-from ruleatlas_persistence.repositories.external_identity_repository import ExternalIdentityRepository
 from ruleatlas_persistence.repositories.user_invite_repository import UserInviteRepository
 from ruleatlas_persistence.repositories.user_repository import UserRepository
 from ruleatlas_persistence.repositories.user_session_repository import UserSessionRepository
