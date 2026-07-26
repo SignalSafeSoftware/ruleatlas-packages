@@ -1,5 +1,26 @@
 # ruleatlas-persistence
 
+## Versioned AST persistence
+
+The package exports additive SQLAlchemy models for AST parse runs, documents, nodes, and typed links.
+They preserve explicit project and analysis-version scope, ordered parent/child navigation, exact
+source ranges, parser/grammar identity, hashes, and bounded link targets. Alembic migrations remain
+owned by the consuming RuleAtlas application.
+
+Write repositories create and complete parse runs, replace narrowly scoped documents, insert node
+batches with preassigned identities, assign roots, and insert typed links. They flush but never
+commit implicitly.
+
+Read operations require project and analysis-version scope. They provide stable child pagination,
+depth- and row-bounded subtree traversal, type/category/range searches, smallest-containing-node
+lookup, normalized definition discovery, and filtered relationship reads. All caller-controlled
+limits have hard upper bounds.
+
+Lifecycle operations report per-version AST usage, locate reusable documents only when content and
+parser/grammar identities match, delete data for expired terminal versions without committing,
+preserve explicitly retained or cross-version-referenced documents, and report missing typed link
+targets. Retention candidates are restricted to old `superseded` or `failed` analysis versions.
+
 **The database ring.** SQLAlchemy ORM models, the declarative `Base`, column/mixin helpers, and the
 `sqlphilosophy`-based repositories — the single shared persistence layer that every context reads and writes
 through. It exists so the context packages depend on *one* persistence package instead of reaching back into
@@ -14,7 +35,7 @@ through. It exists so the context packages depend on *one* persistence package i
 > kernel (`ruleatlas_contracts.enum_utils`; a shim remains at `ruleatlas.shared.enum_utils`). Verified: package
 > standalone (ruff + mypy 76 + pytest); apps/api (ruff, mypy 440, import-linter 5/0); full suite 1319 passed;
 > docker image builds; container resolves 85 tables + Alembic head. See
-> [`docs/architecture/package-decomposition.md`](../../docs/architecture/package-decomposition.md).
+> [`docs/architecture/package-decomposition.md`](https://github.com/SignalSafeSoftware/ruleatlas/blob/main/docs/architecture/package-decomposition.md).
 
 ## Why this package exists (the enabler)
 

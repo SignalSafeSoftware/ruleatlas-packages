@@ -15,13 +15,26 @@ confirmed rule.
 | Module | Contents |
 | --- | --- |
 | `confidence_scorer.py` | Model-free confidence scoring: DTOs (`RuleConfidenceInputs`, `EvidenceView`) + `score_rule_confidence` (kernel deps only). Static-analysis evidence is a weighted corroborating source (below code/tests; never confirming alone). |
+| `ast_evidence.py` | Cited AST observation inputs and deterministic implementation-confidence scoring with resolution, parse-quality, and parser-error dampening |
 | `relationship_suggester.py` | Pure relationship heuristics + DTOs (`RuleView`, `EvidenceView`, `SuggestionCandidate`, `suggest_deterministic_relationships`, `filter_best_candidates`) |
 | `text_normalize.py` | `normalize_rule_text` — language-agnostic token normalization for clustering/dedup |
+| `ast_normalization.py` | Pure normalization of citation-validated AST proposals into implementation/product-intent `ClaimDraft`s with stable citation IDs, origin metadata, and behavior-sensitive deduplication |
+
+AST normalization never promotes inferred intent into a product-intent claim. Inferred intent remains
+labeled metadata on the implementation observation; a separate product-intent claim is emitted only
+for observed intent with product-intent evidence. Equivalent claims merge citation and origin sets,
+but proposals with distinct observed behavior retain distinct deduplication identities.
+
+AST confidence is a separately reported, capped implementation signal. Extracted, resolved, inferred,
+and ambiguous observations receive decreasing weight; partial parses and parser errors reduce it
+further. AST evidence never contributes to product-intent confidence. Numeric confidence also remains
+separate from authority: an approved status affects the authority boundary only when an explicit
+human approval record is present.
 
 ## Why this is the real "language-independent layer"
 
 RuleAtlas normalizes at the **claim/graph** level rather than forcing a universal syntax tree (see
-[the UAST analysis](../../docs/architecture/package-decomposition.md#appendix-language-independent-ast)).
+[the UAST analysis](https://github.com/SignalSafeSoftware/ruleatlas/blob/main/docs/architecture/package-decomposition.md#appendix-language-independent-ast)).
 This package is the home of that IR: providers in different languages all emit `ClaimDraft`s (from the
 kernel), and this layer relates and de-duplicates them **without knowing or caring what language they came
 from**.

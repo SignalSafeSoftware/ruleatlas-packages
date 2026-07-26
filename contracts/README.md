@@ -1,5 +1,27 @@
 # ruleatlas-contracts
 
+## AST contracts
+
+`ruleatlas_contracts.ast` contains dependency-free primitives for the planned persisted syntax-tree
+pipeline:
+
+- stable parse, node-category, link, and resolution vocabularies;
+- zero-based `AstPoint` coordinates;
+- half-open `AstSourceRange` byte ranges;
+- preserved parser node flags;
+- parser and grammar identity.
+- normalized parse-run, document, node, link, capability, and summary records.
+- versioned AST-node and exact-source citations with machine-readable validation outcomes.
+- bounded, provider-neutral AST MCP tool requests and responses with cursor pagination and explicit
+  truncation metadata.
+- immutable investigation budgets and consumption snapshots, explicit partial/blocked/cancelled
+  outcomes, stable retry semantics, and allowlisted trace-safe operational metadata.
+
+The contracts do not import tree-sitter and do not claim a universal semantic AST. Raw parser node
+types remain authoritative; normalized categories are optional navigation hints. MCP request
+contracts intentionally contain no project, organization, or analysis-version fields: trusted
+application context must inject that scope.
+
 **The shared kernel.** Small, stable, dependency-free types that every other RuleAtlas package and the
 `apps/api` application agree on. This is the innermost ring of the architecture: everything depends inward
 on it, and it depends on nothing.
@@ -50,6 +72,8 @@ This rule is what keeps the whole DAG acyclic.
 | `semantic_contract.py` | Semantic-analysis provider contract (`SemanticSymbol/Reference`) |
 | `classification/` | Pure scaffold detection + rule categorization/display (`scaffold_classify`, `scaffold_markers`, `scaffold_filter`, `rule_category`, `rule_display`) |
 | `authorization.py` | Pure project-role/permission policy (`ROLE_RANK`, `PERMISSION_MIN_ROLE`, `role_satisfies`, `permission_satisfied`) |
+| `ast/` | Parser-independent AST primitives, normalized records, and versioned citations |
+| `ast_mcp/` | Bounded AST tool requests/responses without an MCP runtime dependency |
 
 ## Why `ClaimDraft` is language-agnostic (multi-language example)
 
@@ -114,7 +138,8 @@ ClaimDraft(
 
 Because the shape is identical, downstream packages (`claims`, `ai`, `exports`) never branch on language —
 they operate on `ClaimDraft` alone. That is the "normalize at the claim level, not the syntax-tree level"
-decision (see the [UAST appendix](../../docs/architecture/package-decomposition.md#appendix-language-independent-ast)).
+decision (see the
+[UAST appendix](https://github.com/SignalSafeSoftware/ruleatlas/blob/main/docs/architecture/package-decomposition.md#appendix-language-independent-ast)).
 
 ## Enums span languages too
 

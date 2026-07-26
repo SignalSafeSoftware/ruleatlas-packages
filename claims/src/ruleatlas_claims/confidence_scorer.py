@@ -14,6 +14,12 @@ from dataclasses import dataclass, field
 from ruleatlas_contracts.classification.scaffold_filter import is_scaffold_evidence_text
 from ruleatlas_contracts.enums import EvidenceSourceType, RuleStatus
 
+from ruleatlas_claims.ast_evidence import (
+    AST_CORROBORATION_BOOST_CAP,
+    AstEvidenceView,
+    score_ast_evidence,
+)
+
 DEFAULT_SOURCE_WEIGHTS: dict[str, float] = {
     EvidenceSourceType.BACKEND_CODE.value: 1.0,
     EvidenceSourceType.FRONTEND_CODE.value: 0.95,
@@ -69,6 +75,7 @@ __all__ = [
     "STATIC_ANALYSIS_CORROBORATION_FACTOR",
     "STATIC_ANALYSIS_SOURCE_TYPES",
     "TEST_SOURCE_TYPES",
+    "AstEvidenceView",
     "ConfidenceBreakdown",
     "EvidenceView",
     "RuleConfidenceInputs",
@@ -96,11 +103,18 @@ class RuleConfidenceInputs:
     evidence: tuple[EvidenceView, ...] = ()
     coverage_scores: tuple[float, ...] = ()
     runtime_high_flags: tuple[bool, ...] = ()
+    ast_evidence: tuple[AstEvidenceView, ...] = ()
+    human_approval_recorded: bool = False
     source_weight_overrides: dict[str, float] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        if self.human_approval_recorded and self.status != RuleStatus.APPROVED:
+            raise ValueError("human_approval_recorded requires status=approved")
 
 
 @dataclass
 class ConfidenceBreakdown:
+    ast_confidence: float = 0.0
     implementation_confidence: float = 0.0
     test_confidence: float = 0.0
     documentation_confidence: float = 0.0
@@ -109,9 +123,11 @@ class ConfidenceBreakdown:
     product_intent_confidence: float = 0.0
     overall_confidence: float = 0.0
     explanations: list[str] = field(default_factory=list)
+    approval_authority: str = "human_review_required"
 
-    def as_dict(self) -> dict[str, float | list[str]]:
+    def as_dict(self) -> dict[str, object]:
         return {
+            "ast_confidence": self.ast_confidence,
             "implementation_confidence": self.implementation_confidence,
             "test_confidence": self.test_confidence,
             "documentation_confidence": self.documentation_confidence,
@@ -120,6 +136,7 @@ class ConfidenceBreakdown:
             "product_intent_confidence": self.product_intent_confidence,
             "overall_confidence": self.overall_confidence,
             "explanations": self.explanations,
+            "approval_authority": self.approval_authority,
         }
 
 
@@ -176,9 +193,7 @@ def _score_evidence_row(
         return
     if source in COMMENT_SOURCE_TYPES:
         doc_scores.append(score * 0.4)
-        breakdown.explanations.append(
-            f"Weak code-comment intent hint from {ev.reference_path} (cannot confirm alone)"
-        )
+        breakdown.explanations.append(f"Weak code-comment intent hint from {ev.reference_path} (cannot confirm alone)")
         return
     if source in DOC_SOURCE_TYPES:
         doc_scores.append(score * 0.85)
@@ -210,9 +225,7 @@ def _apply_coverage_runtime(
     runtime_high_flags: tuple[bool, ...],
 ) -> None:
     if coverage_scores:
-        breakdown.coverage_confidence = _clamp(
-            _avg([s if s <= 1 else s / 100 for s in coverage_scores])
-        )
+        breakdown.coverage_confidence = _clamp(_avg([s if s <= 1 else s / 100 for s in coverage_scores]))
         breakdown.explanations.append("Coverage supports execution evidence only")
         breakdown.test_confidence = _clamp(max(breakdown.test_confidence, breakdown.coverage_confidence * 0.6))
     if runtime_high_flags:
@@ -244,6 +257,25 @@ def score_rule_confidence(inputs: RuleConfidenceInputs) -> ConfidenceBreakdown:
     breakdown.implementation_confidence = _clamp(
         _apply_static_analysis(_avg(impl_scores), static_scores, has_impl=bool(impl_scores))
     )
+    ast_score = score_ast_evidence(inputs.ast_evidence)
+    breakdown.ast_confidence = ast_score.implementation_confidence
+    breakdown.explanations.extend(ast_score.explanations)
+    if inputs.ast_evidence:
+        if impl_scores:
+            breakdown.implementation_confidence = _clamp(
+                breakdown.implementation_confidence
+                + min(
+                    breakdown.ast_confidence * 0.25,
+                    AST_CORROBORATION_BOOST_CAP,
+                )
+            )
+            breakdown.explanations.append("AST evidence corroborates implementation evidence")
+        else:
+            breakdown.implementation_confidence = max(
+                breakdown.implementation_confidence,
+                breakdown.ast_confidence,
+            )
+        breakdown.explanations.append("AST structure cannot establish product intent or approval")
     breakdown.test_confidence = _clamp(_avg(test_scores))
     breakdown.documentation_confidence = _clamp(_avg(doc_scores))
     breakdown.product_intent_confidence = _clamp(_avg(doc_scores + [s * 0.5 for s in ai_scores]))
@@ -262,6 +294,10 @@ def score_rule_confidence(inputs: RuleConfidenceInputs) -> ConfidenceBreakdown:
         breakdown.explanations.append("Open conflicts reduce overall confidence")
     if inputs.status in {RuleStatus.REJECTED, RuleStatus.DEPRECATED}:
         breakdown.overall_confidence = _clamp(breakdown.overall_confidence * 0.25)
-    elif inputs.status == RuleStatus.APPROVED:
+    elif inputs.status == RuleStatus.APPROVED and inputs.human_approval_recorded:
         breakdown.overall_confidence = _clamp(max(breakdown.overall_confidence, 0.6))
+        breakdown.approval_authority = "human_approved"
+        breakdown.explanations.append("Human approval is recorded as the authority decision")
+    elif inputs.status == RuleStatus.APPROVED:
+        breakdown.explanations.append("Approved status has no authority effect without a human approval record")
     return breakdown

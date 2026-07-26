@@ -1,7 +1,8 @@
 # RuleAtlas packages
 
 Installable packages extracted from the `apps/api` backend to make the codebase maintainable via small,
-enforceable, acyclic boundaries. Full plan: [`docs/architecture/package-decomposition.md`](../docs/architecture/package-decomposition.md).
+enforceable, acyclic boundaries. Full plan:
+[`docs/architecture/package-decomposition.md`](https://github.com/SignalSafeSoftware/ruleatlas/blob/main/docs/architecture/package-decomposition.md).
 
 ## Status
 
@@ -54,13 +55,15 @@ A single worked rule — *"invoices over $10,000 require manager approval"* — 
 README to show this: it is recognized in Python/TS/PHP/PHPUnit/Gherkin, normalized to one shape, clustered
 into one canonical rule, synthesized once, and reported with cross-language evidence. Adding a new language is
 a `discovery` + `extraction` change only; `contracts`/`claims`/`ai`/`exports` are untouched. See the
-[UAST appendix](../docs/architecture/package-decomposition.md#appendix-language-independent-ast) for why this
+[UAST appendix](https://github.com/SignalSafeSoftware/ruleatlas/blob/main/docs/architecture/package-decomposition.md#appendix-language-independent-ast)
+for why this
 claim-level normalization is preferred over a universal syntax tree.
 
 ## Conventions
 
 - Standalone **hatchling** packages, `src/ruleatlas_<name>/` layout, PEP 561 typed (`py.typed`).
-- Managed with **uv** for standalone dev; consumed by `apps/api` as Poetry editable path deps.
+- Managed with **uv** for standalone development; consumed by `apps/api` as Git dependencies whose resolved
+  commit is pinned in `apps/api/poetry.lock`.
 - Python ≥ 3.12, ruff (line-length 120), mypy strict, pytest.
 - Each package: `pyproject.toml`, `src/`, `README.md` (responsibility + module map + boundary rules + language
   examples where relevant), `tests/`.

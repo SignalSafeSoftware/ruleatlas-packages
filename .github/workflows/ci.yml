@@ -2,7 +2,7 @@ name: packages-ci
 
 # CI for the RuleAtlas packages repository (this directory becomes the repo root).
 # Each Python package is linted, type-checked, tested, and built standalone from the uv workspace.
-# (discovery-ui lives in its own repository: SignalSafeSoftware/ruleatlas-discovery-ui.)
+# (The React component library lives in its own repository: SignalSafeSoftware/ruleatlas-ui.)
 
 on:
   push:

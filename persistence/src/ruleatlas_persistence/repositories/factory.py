@@ -33,6 +33,16 @@ from ruleatlas_persistence.repositories.analysis_version_repository import (
     AnalysisVersionRepository,
 )
 from ruleatlas_persistence.repositories.api_token_repository import ApiTokenRepository
+from ruleatlas_persistence.repositories.ast_lifecycle_repository import (
+    AstLifecycleRepository,
+)
+from ruleatlas_persistence.repositories.ast_read_repository import AstQueryRepository
+from ruleatlas_persistence.repositories.ast_write_repository import (
+    AstDocumentRepository,
+    AstNodeLinkRepository,
+    AstNodeRepository,
+    AstParseRunRepository,
+)
 from ruleatlas_persistence.repositories.audit_repository import AuditRepository
 from ruleatlas_persistence.repositories.bdd_repository import (
     BddFeatureRepository,
@@ -204,6 +214,24 @@ class RepositoryFactory(SqlPhilosophyRepositoryFactory):
 
     def analysis_versions(self) -> AnalysisVersionRepository:
         return self.get_repository(AnalysisVersionRepository)
+
+    def ast_parse_runs(self) -> AstParseRunRepository:
+        return self.get_repository(AstParseRunRepository)
+
+    def ast_documents(self) -> AstDocumentRepository:
+        return self.get_repository(AstDocumentRepository)
+
+    def ast_nodes(self) -> AstNodeRepository:
+        return self.get_repository(AstNodeRepository)
+
+    def ast_node_links(self) -> AstNodeLinkRepository:
+        return self.get_repository(AstNodeLinkRepository)
+
+    def ast_queries(self) -> AstQueryRepository:
+        return self.get_repository(AstQueryRepository)
+
+    def ast_lifecycle(self) -> AstLifecycleRepository:
+        return self.get_repository(AstLifecycleRepository)
 
     def analysis_manifests(self) -> AnalysisManifestRepository:
         return self.get_repository(AnalysisManifestRepository)

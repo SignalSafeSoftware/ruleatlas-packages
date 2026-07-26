@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Add parser-independent AST vocabularies, source ranges, node flags, and parser identity contracts.
+- Add normalized AST parse-run, document, node, link, capability, and summary records.
+- Add versioned AST/source citation contracts and validation result vocabulary.
+
 All notable changes to `ruleatlas-contracts` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/) and the project uses semantic versioning.
 The version is sourced from `src/ruleatlas_contracts/version.py`.

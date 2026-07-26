@@ -13,6 +13,7 @@ from .ai import (
     IntegrationCredential,
     ProjectAiConfiguration,
 )
+from .ast import AstDocument, AstNode, AstNodeLink, AstParseRun
 from .core import (
     ApiToken,
     ExternalIdentity,
@@ -112,6 +113,10 @@ __all__ = [
     "AnalysisManifestFile",
     "AnalysisVersion",
     "ApiToken",
+    "AstDocument",
+    "AstNode",
+    "AstNodeLink",
+    "AstParseRun",
     "AuditEvent",
     "BddFeature",
     "BddScenario",

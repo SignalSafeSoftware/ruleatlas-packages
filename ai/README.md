@@ -19,6 +19,45 @@ gracefully when AI is unavailable.
   pipeline degrades, not fails, without it.
 - Outbound URLs (provider `base_url`, etc.) are SSRF-guarded; secrets are never logged.
 
+## AST investigation contracts
+
+`ruleatlas_ai.investigation` defines the provider-neutral state exchanged by a bounded AI
+investigation orchestrator:
+
+- repository orientation and prioritized target selection;
+- model-authored AST tool requests with trusted scope fields forbidden;
+- correlated tool-result, trace, error, and budget envelopes;
+- continue, propose-rule, no-rule, and stop decisions;
+- cited conclusive no-rule results that remain distinct from insufficient evidence.
+
+These are pure contracts, not an agent loop or MCP transport. A `propose_rule` decision does not
+persist or approve anything; it only hands control to the separately validated proposal pipeline.
+
+AST investigations emit the frozen `AstRuleProposal` schema version `2.0.0`. It requires canonical
+rule text, observed behavior, separately classified product intent, structured rule facts, AST and
+exact-source citations, confidence/uncertainty, and provider/model/prompt provenance. Extra fields
+are forbidden, so approval state cannot be expressed by model output. Legacy `1.0.0`
+`AiRuleProposal` remains available to existing claim-cluster synthesis and can be migrated only when
+the caller supplies AST evidence, provider provenance, observed behavior, and all missing structured
+facts explicitly.
+
+Supporting citations carry an explicit implementation, product-intent, verification, exception, or
+counterevidence role plus the proposal fields they support. The pure validator rejects duplicate or
+cross-scope citations, disallowed roles, incomplete field coverage, missing implementation evidence,
+unsupported observed-intent claims, and AI assertions that a candidate has already been reviewed or
+approved. It performs no database or authorization checks; those remain at the application boundary.
+
+`ruleatlas_ai.providers.ast_agent_capabilities` describes model suitability independently of any
+provider SDK. It covers structured-output strength, serial and parallel tool calls, context/output
+limits, deterministic temperature, streaming, local/remote execution governance, and comparable
+cost metadata. Compatibility evaluation treats unknown required capabilities as blockers, enforces
+local-only and cost policies, and never upgrades discovery hints into unprobed capabilities.
+
+The AI-to-claims adapter reruns pure citation validation before producing a
+`ValidatedAstProposalInput`. It adds a deterministic proposal fingerprint and validator identity;
+the claims package then normalizes it without importing the AI package, preserving the dependency
+direction.
+
 ## Responsibility
 
 | Belongs here | Does **not** belong here |

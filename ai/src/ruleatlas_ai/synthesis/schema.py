@@ -7,9 +7,11 @@ from typing import Any
 from pydantic import BaseModel, Field, ValidationError
 
 AI_RULE_SCHEMA_VERSION = "1.0.0"
+"""Legacy claim-cited proposal version. New AST investigations emit schema 2.0.0."""
 
 
 class AiRuleProposal(BaseModel):
+    """Legacy v1 proposal retained for explicit migration and existing synthesis."""
     schema_version: str = AI_RULE_SCHEMA_VERSION
     canonical_wording: str = Field(min_length=8)
     actor: str | None = None
