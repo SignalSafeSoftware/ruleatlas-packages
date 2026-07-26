@@ -18,6 +18,10 @@ from ruleatlas_persistence.models import (
     ProjectAiConfiguration,
 )
 
+# Canonical deployment-managed OpenAI bootstrap connection (org-scoped unique name).
+OPENAI_ENVIRONMENT_BOOTSTRAP_NAME = "OpenAI (environment)"
+OPENAI_ENVIRONMENT_BOOTSTRAP_VAR = "OPENAI_API_KEY"
+
 
 class AiProviderConnectionRepository(BaseRepository[AiProviderConnection, "RepositoryFactory"]):
     def __init__(self, session: Session, factory: RepositoryFactory) -> None:
@@ -60,13 +64,23 @@ class AiProviderConnectionRepository(BaseRepository[AiProviderConnection, "Repos
         return self.first(organization_id=organization_id, name=name)
 
     def get_environment_openai_bootstrap(self, organization_id: str) -> AiProviderConnection | None:
-        """Earliest OpenAI connection bound to OPENAI_API_KEY for an organization."""
+        """Earliest OpenAI bootstrap connection for an organization.
+
+        Matches the ``OPENAI_API_KEY`` environment binding **or** the canonical
+        bootstrap display name (kept after credential migration when
+        ``environment_variable_name`` is cleared). Unique constraint is on
+        ``(organization_id, name)``.
+        """
         return (
             self.statement()
             .where(
                 AiProviderConnection.organization_id == organization_id,
                 AiProviderConnection.provider_type == "openai",
-                AiProviderConnection.environment_variable_name == "OPENAI_API_KEY",
+                or_(
+                    AiProviderConnection.environment_variable_name
+                    == OPENAI_ENVIRONMENT_BOOTSTRAP_VAR,
+                    AiProviderConnection.name == OPENAI_ENVIRONMENT_BOOTSTRAP_NAME,
+                ),
             )
             .order_by(AiProviderConnection.created_at.asc())
             .scalars()

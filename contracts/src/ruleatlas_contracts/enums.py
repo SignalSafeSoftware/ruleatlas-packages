@@ -147,6 +147,7 @@ class SourceLocationType(StrEnum):
     GIT_REPO = "git_repo"
     URL = "url"
     ARCHIVE = "archive"
+    # Deprecated: ZIP upload API removed. Kept for reading legacy rows until migrated to local_path.
     UPLOADED_ZIP = "uploaded_zip"
 
 
