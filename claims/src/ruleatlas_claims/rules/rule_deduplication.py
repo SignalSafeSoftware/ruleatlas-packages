@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from ruleatlas_contracts.enums import RuleLineageRelation, RuleStatus
-from ruleatlas_persistence.models import Rule, RuleLineage
+from ruleatlas_persistence.models import Rule, RuleLineage, RuleVersion
 from ruleatlas_persistence.repositories import RepositoryFactory
 from sqlalchemy.orm import Session
 
@@ -12,8 +12,10 @@ from ruleatlas_claims.text_normalize import normalize_rule_text as normalize_rul
 
 
 def similarity_score(left: str, right: str) -> float:
-    left_norm = normalize_rule_text(left)
-    right_norm = normalize_rule_text(right)
+    return _normalized_similarity(normalize_rule_text(left), normalize_rule_text(right))
+
+
+def _normalized_similarity(left_norm: str, right_norm: str) -> float:
     if not left_norm or not right_norm:
         return 0.0
     if left_norm == right_norm:
@@ -35,30 +37,37 @@ class DuplicateGroup:
     label: str
 
 
-def _rule_text(session: Session, rule: Rule) -> str:
-    if rule.current_version_id:
-        version = RepositoryFactory(session).rule_versions().get_by_id(rule.current_version_id)
-        if version is not None:
-            return version.business_rule
+def _rule_text(rule: Rule, versions_by_id: dict[str, RuleVersion]) -> str:
+    if rule.current_version_id and (version := versions_by_id.get(rule.current_version_id)):
+        return version.business_rule
     return rule.name
 
 
+def _normalized_rule_texts(session: Session, rules: list[Rule]) -> dict[str, str]:
+    version_ids = {rule.current_version_id for rule in rules if rule.current_version_id}
+    versions_by_id = RepositoryFactory(session).rule_versions().map_by_ids(version_ids)
+    return {
+        rule.id: normalize_rule_text(_rule_text(rule, versions_by_id))
+        for rule in rules
+    }
+
+
 def _duplicate_members_for_primary(
-    session: Session,
     rules: list[Rule],
     *,
     start_index: int,
-    primary_text: str,
+    normalized_texts: dict[str, str],
     min_similarity: float,
     seen: set[str],
 ) -> tuple[list[str], float]:
     primary = rules[start_index]
+    primary_text = normalized_texts[primary.id]
     members = [primary.id]
     max_similarity = 0.0
     for other in rules[start_index + 1 :]:
         if other.id in seen:
             continue
-        score = similarity_score(primary_text, _rule_text(session, other))
+        score = _normalized_similarity(primary_text, normalized_texts[other.id])
         if score >= min_similarity:
             members.append(other.id)
             max_similarity = max(max_similarity, score)
@@ -72,6 +81,7 @@ def find_duplicate_groups(
     min_similarity: float = 0.72,
 ) -> list[DuplicateGroup]:
     rules = RepositoryFactory(session).rules().list_for_dedup_candidates(project_id)
+    normalized_texts = _normalized_rule_texts(session, rules)
     groups: list[DuplicateGroup] = []
     seen: set[str] = set()
 
@@ -79,10 +89,9 @@ def find_duplicate_groups(
         if primary.id in seen:
             continue
         members, max_similarity = _duplicate_members_for_primary(
-            session,
             rules,
             start_index=index,
-            primary_text=_rule_text(session, primary),
+            normalized_texts=normalized_texts,
             min_similarity=min_similarity,
             seen=seen,
         )
@@ -97,6 +106,43 @@ def find_duplicate_groups(
                 )
             )
     return groups
+
+
+def find_duplicate_groups_for_rule(
+    session: Session,
+    project_id: str,
+    rule_id: str,
+    *,
+    min_similarity: float = 0.72,
+) -> list[DuplicateGroup]:
+    """Return duplicate candidates for one rule without project-wide pairwise grouping."""
+    rules = RepositoryFactory(session).rules().list_for_dedup_candidates(project_id)
+    primary = next((rule for rule in rules if rule.id == rule_id), None)
+    if primary is None:
+        return []
+
+    normalized_texts = _normalized_rule_texts(session, rules)
+    primary_text = normalized_texts[primary.id]
+    members = [primary.id]
+    max_similarity = 0.0
+    for other in rules:
+        if other.id == primary.id:
+            continue
+        score = _normalized_similarity(primary_text, normalized_texts[other.id])
+        if score >= min_similarity:
+            members.append(other.id)
+            max_similarity = max(max_similarity, score)
+
+    if len(members) == 1:
+        return []
+    return [
+        DuplicateGroup(
+            primary_rule_id=primary.id,
+            rule_ids=members,
+            similarity=max_similarity,
+            label=primary.name,
+        )
+    ]
 
 
 def merge_rules(
