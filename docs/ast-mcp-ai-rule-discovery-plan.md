@@ -1,6 +1,6 @@
 # Package plan for AST/MCP/AI business-rule discovery
 
-Status: proposed  
+Status: implemented; cutover validation in progress
 Primary repository: `ruleatlas-packages`  
 Companion application plan: `ruleatlas/docs/roadmap/ast-mcp-ai-rule-discovery-plan.md`
 
@@ -15,6 +15,7 @@ Companion application plan: `ruleatlas/docs/roadmap/ast-mcp-ai-rule-discovery-pl
 | `PKG-AST-005` AST write repositories | Complete | Ruff, strict mypy, 21 persistence tests, and package build passed |
 | `PKG-AST-006` scoped AST read repositories | Complete | Ruff, strict mypy, 30 persistence tests, and package build passed |
 | `PKG-AST-007` AST lifecycle and retention | Complete | Ruff, strict mypy, 34 persistence tests, and package build passed |
+| `PKG-AST-008` content-addressed AST payload reuse | Complete | 23 focused persistence tests plus isolated PostgreSQL upgrade/downgrade rehearsal passed |
 | `PKG-MCP-001` AST MCP tool schemas | Complete | Ruff, strict mypy, 63 contracts tests, and package build passed |
 | `PKG-MCP-002` investigation budgets and outcomes | Complete | Ruff, strict mypy, 75 contracts tests, and package build passed |
 | `PKG-AI-001` AST investigation step contracts | Complete | Ruff, strict mypy, 21 AI tests, and package build passed |
@@ -182,7 +183,7 @@ Uniqueness:
 Required fields:
 
 - ID;
-- AST document ID;
+- immutable AST payload ID;
 - parent node ID;
 - sibling ordinal;
 - tree-sitter raw node type;
@@ -201,6 +202,7 @@ Do not store source text on every node.
 
 Optional but recommended fields:
 
+- version-owned AST document ID;
 - AST node ID;
 - graph node ID, source symbol ID, evidence ID, or another AST node ID;
 - link type;
@@ -208,6 +210,13 @@ Optional but recommended fields:
 - confidence;
 - resolver key/version;
 - attributes.
+
+### AST payload
+
+An AST payload owns the immutable node tree and is unique within a project by document key,
+content hash, language, parser key/version, and grammar key/version. Version-owned AST documents
+reference the payload. Links remain document scoped so graph, evidence, and rule relationships
+cannot leak between analysis versions that share syntax.
 
 ## 5. Work items and commits
 

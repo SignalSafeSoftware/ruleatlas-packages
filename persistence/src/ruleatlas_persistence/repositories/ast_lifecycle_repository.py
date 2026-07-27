@@ -17,6 +17,7 @@ from ruleatlas_persistence.models import (
     AstNode,
     AstNodeLink,
     AstParseRun,
+    AstPayload,
     GraphNode,
     RuleEvidence,
     SourceSymbol,
@@ -93,7 +94,7 @@ class AstLifecycleRepository:
                 func.count(AstNode.id).filter(AstNode.is_error.is_(True)),
             )
             .select_from(AstNode)
-            .join(AstDocument, AstDocument.id == AstNode.ast_document_id)
+            .join(AstDocument, AstDocument.ast_payload_id == AstNode.ast_payload_id)
             .where(
                 AstDocument.project_id == project_id,
                 AstDocument.analysis_version_id == analysis_version_id,
@@ -180,60 +181,85 @@ class AstLifecycleRepository:
             )
         )
         candidate_document_ids = {document.id for document in documents}
-        candidate_node_rows = self._session.execute(
-            select(AstNode.id, AstNode.ast_document_id).where(AstNode.ast_document_id.in_(candidate_document_ids))
-        ).all()
-        candidate_node_ids = {node_id for node_id, _document_id in candidate_node_rows}
-
-        inbound_protected: set[str] = set()
-        if candidate_node_ids:
-            source_node = aliased(AstNode)
-            target_node = aliased(AstNode)
-            inbound_protected.update(
-                self._session.scalars(
-                    select(target_node.ast_document_id)
-                    .select_from(AstNodeLink)
-                    .join(
-                        source_node,
-                        source_node.id == AstNodeLink.ast_node_id,
-                    )
-                    .join(
-                        target_node,
-                        target_node.id == AstNodeLink.target_ast_node_id,
-                    )
-                    .where(
-                        AstNodeLink.target_ast_node_id.in_(candidate_node_ids),
-                        source_node.ast_document_id.not_in(candidate_document_ids),
-                    )
-                    .distinct()
-                )
-            )
-        protected_ids = (explicitly_protected & candidate_document_ids) | inbound_protected
+        protected_ids = explicitly_protected & candidate_document_ids
         deleted_document_ids = candidate_document_ids - protected_ids
-        deleted_node_ids = {
-            node_id for node_id, document_id in candidate_node_rows if document_id in deleted_document_ids
-        }
 
-        links_deleted = 0
+        links_deleted = int(
+            self._session.scalar(
+                select(func.count())
+                .select_from(AstNodeLink)
+                .where(AstNodeLink.ast_document_id.in_(deleted_document_ids))
+            )
+            or 0
+        )
         nodes_deleted = 0
         documents_deleted = 0
-        if deleted_node_ids:
-            link_filter = or_(
-                AstNodeLink.ast_node_id.in_(deleted_node_ids),
-                AstNodeLink.target_ast_node_id.in_(deleted_node_ids),
-            )
-            links_deleted = int(
-                self._session.scalar(select(func.count()).select_from(AstNodeLink).where(link_filter)) or 0
-            )
-            self._session.execute(delete(AstNodeLink).where(link_filter))
         if deleted_document_ids:
+            payload_ids = set(
+                self._session.scalars(
+                    select(AstDocument.ast_payload_id).where(
+                        AstDocument.id.in_(deleted_document_ids),
+                        AstDocument.ast_payload_id.is_not(None),
+                    )
+                )
+            )
+            self._session.execute(
+                delete(AstNodeLink).where(
+                    AstNodeLink.ast_document_id.in_(deleted_document_ids)
+                )
+            )
             self._session.execute(
                 update(AstDocument).where(AstDocument.id.in_(deleted_document_ids)).values(root_node_id=None)
             )
-            self._session.execute(delete(AstNode).where(AstNode.ast_document_id.in_(deleted_document_ids)))
             self._session.execute(delete(AstDocument).where(AstDocument.id.in_(deleted_document_ids)))
-            nodes_deleted = len(deleted_node_ids)
             documents_deleted = len(deleted_document_ids)
+            unreferenced_payload_ids = set(
+                self._session.scalars(
+                    select(AstPayload.id).where(
+                        AstPayload.id.in_(payload_ids),
+                        ~exists(
+                            select(AstDocument.id).where(
+                                AstDocument.ast_payload_id == AstPayload.id
+                            )
+                        ),
+                        ~exists(
+                            select(AstNodeLink.id)
+                            .join(
+                                AstNode,
+                                or_(
+                                    AstNode.id == AstNodeLink.ast_node_id,
+                                    AstNode.id == AstNodeLink.target_ast_node_id,
+                                ),
+                            )
+                            .where(AstNode.ast_payload_id == AstPayload.id)
+                        ),
+                    )
+                )
+            )
+            if unreferenced_payload_ids:
+                nodes_deleted = int(
+                    self._session.scalar(
+                        select(func.count())
+                        .select_from(AstNode)
+                        .where(AstNode.ast_payload_id.in_(unreferenced_payload_ids))
+                    )
+                    or 0
+                )
+                self._session.execute(
+                    update(AstPayload)
+                    .where(AstPayload.id.in_(unreferenced_payload_ids))
+                    .values(root_node_id=None)
+                )
+                self._session.execute(
+                    delete(AstNode).where(
+                        AstNode.ast_payload_id.in_(unreferenced_payload_ids)
+                    )
+                )
+                self._session.execute(
+                    delete(AstPayload).where(
+                        AstPayload.id.in_(unreferenced_payload_ids)
+                    )
+                )
 
         remaining_parse_run = exists(select(AstDocument.id).where(AstDocument.parse_run_id == AstParseRun.id))
         deletable_parse_run_ids = list(
@@ -301,8 +327,7 @@ class AstLifecycleRepository:
         )
         rows = self._session.scalars(
             select(AstNodeLink)
-            .join(AstNode, AstNode.id == AstNodeLink.ast_node_id)
-            .join(AstDocument, AstDocument.id == AstNode.ast_document_id)
+            .join(AstDocument, AstDocument.id == AstNodeLink.ast_document_id)
             .where(
                 AstDocument.project_id == project_id,
                 AstDocument.analysis_version_id == analysis_version_id,

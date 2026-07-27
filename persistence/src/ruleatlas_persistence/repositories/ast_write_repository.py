@@ -21,7 +21,13 @@ from sqlalchemy.orm import Session
 from sqlphilosophy.sync.repository import BaseRepository
 
 from ruleatlas_persistence.mixins import uuid_str
-from ruleatlas_persistence.models import AstDocument, AstNode, AstNodeLink, AstParseRun
+from ruleatlas_persistence.models import (
+    AstDocument,
+    AstNode,
+    AstNodeLink,
+    AstParseRun,
+    AstPayload,
+)
 
 
 class AstParseRunRepository(BaseRepository[AstParseRun, "RepositoryFactory"]):
@@ -88,12 +94,18 @@ class AstDocumentRepository(BaseRepository[AstDocument, "RepositoryFactory"]):
         super().__init__(AstDocument, session, factory)
         self._session = session
 
-    def create_from_record(self, record: AstDocumentRecord) -> AstDocument:
+    def create_from_record(
+        self,
+        record: AstDocumentRecord,
+        *,
+        ast_payload_id: str,
+    ) -> AstDocument:
         row = AstDocument(
             project_id=record.project_id,
             analysis_version_id=record.analysis_version_id,
             scan_run_id=record.scan_run_id,
             parse_run_id=record.parse_run_id,
+            ast_payload_id=ast_payload_id,
             source_file_id=record.source_file_id,
             document_key=record.document_key,
             source_path=record.source_path,
@@ -115,7 +127,12 @@ class AstDocumentRepository(BaseRepository[AstDocument, "RepositoryFactory"]):
         self._session.flush()
         return row
 
-    def replace_for_source(self, record: AstDocumentRecord) -> AstDocument:
+    def replace_for_source(
+        self,
+        record: AstDocumentRecord,
+        *,
+        ast_payload_id: str,
+    ) -> AstDocument:
         existing = self._session.scalar(
             select(AstDocument).where(
                 AstDocument.project_id == record.project_id,
@@ -129,7 +146,7 @@ class AstDocumentRepository(BaseRepository[AstDocument, "RepositoryFactory"]):
                 analysis_version_id=record.analysis_version_id,
                 document_id=existing.id,
             )
-        return self.create_from_record(record)
+        return self.create_from_record(record, ast_payload_id=ast_payload_id)
 
     def delete_scoped(
         self,
@@ -147,17 +164,52 @@ class AstDocumentRepository(BaseRepository[AstDocument, "RepositoryFactory"]):
         )
         if document is None:
             return 0
-        node_ids = select(AstNode.id).where(AstNode.ast_document_id == document.id)
         self._session.execute(update(AstDocument).where(AstDocument.id == document.id).values(root_node_id=None))
         self._session.execute(
-            delete(AstNodeLink).where(
-                (AstNodeLink.ast_node_id.in_(node_ids)) | (AstNodeLink.target_ast_node_id.in_(node_ids))
-            )
+            delete(AstNodeLink).where(AstNodeLink.ast_document_id == document.id)
         )
-        self._session.execute(delete(AstNode).where(AstNode.ast_document_id == document.id))
         self._session.execute(delete(AstDocument).where(AstDocument.id == document.id))
         self._session.flush()
         return 1
+
+
+class AstPayloadRepository(BaseRepository[AstPayload, "RepositoryFactory"]):
+    def __init__(self, session: Session, factory: RepositoryFactory) -> None:
+        super().__init__(AstPayload, session, factory)
+        self._session = session
+
+    def get_for_record(self, record: AstDocumentRecord) -> AstPayload | None:
+        return self._session.scalar(
+            select(AstPayload).where(
+                AstPayload.project_id == record.project_id,
+                AstPayload.document_key == record.document_key,
+                AstPayload.content_hash == record.content_hash,
+                AstPayload.language_key == record.parser.language_key,
+                AstPayload.parser_key == record.parser.parser_key,
+                AstPayload.parser_version == record.parser.parser_version,
+                AstPayload.grammar_key == record.parser.grammar_key,
+                AstPayload.grammar_version == record.parser.grammar_version,
+            )
+        )
+
+    def create_for_record(self, record: AstDocumentRecord) -> AstPayload:
+        row = AstPayload(
+            project_id=record.project_id,
+            document_key=record.document_key,
+            content_hash=record.content_hash,
+            language_key=record.parser.language_key,
+            parser_key=record.parser.parser_key,
+            parser_version=record.parser.parser_version,
+            grammar_key=record.parser.grammar_key,
+            grammar_version=record.parser.grammar_version,
+            source_bytes=record.source_bytes,
+            node_count=record.node_count,
+            error_node_count=record.error_node_count,
+            attributes_json={},
+        )
+        self._session.add(row)
+        self._session.flush()
+        return row
 
 
 class AstNodeRepository(BaseRepository[AstNode, "RepositoryFactory"]):
@@ -172,7 +224,12 @@ class AstNodeRepository(BaseRepository[AstNode, "RepositoryFactory"]):
     ) -> dict[str, str]:
         if not records:
             raise ValueError("records must not be empty")
-        if document.root_node_id is not None:
+        if document.ast_payload_id is None:
+            raise ValueError("document must reference an AST payload")
+        payload = self._session.get(AstPayload, document.ast_payload_id)
+        if payload is None:
+            raise ValueError("document AST payload does not exist")
+        if payload.root_node_id is not None:
             raise ValueError("document already has persisted AST nodes")
         if any(record.document_key != document.document_key for record in records):
             raise ValueError("every node must match the target document_key")
@@ -188,10 +245,10 @@ class AstNodeRepository(BaseRepository[AstNode, "RepositoryFactory"]):
             if record.parent_node_key is not None and record.parent_node_key not in key_to_id:
                 raise ValueError(f"parent node is missing from batch: {record.parent_node_key}")
 
-        payloads = [
-            {
+        payload_by_key = {
+            record.node_key: {
                 "id": key_to_id[record.node_key],
-                "ast_document_id": document.id,
+                "ast_payload_id": payload.id,
                 "parent_node_id": (key_to_id[record.parent_node_key] if record.parent_node_key is not None else None),
                 "node_key": record.node_key,
                 "sibling_ordinal": record.sibling_ordinal,
@@ -215,11 +272,34 @@ class AstNodeRepository(BaseRepository[AstNode, "RepositoryFactory"]):
                 "attributes_json": dict(record.attributes),
             }
             for record in records
-        ]
-        self._session.execute(insert(cast(Table, AstNode.__table__)), payloads)
-        document.root_node_id = key_to_id[roots[0].node_key]
+        }
+        remaining = {record.node_key: record for record in records}
+        persisted_keys: set[str] = set()
+        while remaining:
+            layer = [
+                record
+                for record in remaining.values()
+                if record.parent_node_key is None or record.parent_node_key in persisted_keys
+            ]
+            if not layer:
+                unresolved = ", ".join(sorted(remaining)[:3])
+                raise ValueError(
+                    f"node parents contain a cycle or missing key: {unresolved}"
+                )
+            self._session.execute(
+                insert(cast(Table, AstNode.__table__)),
+                [payload_by_key[record.node_key] for record in layer],
+            )
+            self._session.flush()
+            for record in layer:
+                persisted_keys.add(record.node_key)
+                remaining.pop(record.node_key)
+        payload.root_node_id = key_to_id[roots[0].node_key]
+        payload.node_count = len(records)
+        payload.error_node_count = sum(1 for record in records if record.flags.is_error)
+        document.root_node_id = payload.root_node_id
         document.node_count = len(records)
-        document.error_node_count = sum(1 for record in records if record.flags.is_error)
+        document.error_node_count = payload.error_node_count
         self._session.flush()
         return key_to_id
 
@@ -239,7 +319,9 @@ class AstNodeLinkRepository(BaseRepository[AstNodeLink, "RepositoryFactory"]):
         if any(record.document_key != document.document_key for record in records):
             raise ValueError("every link must match the target document_key")
         node_rows = self._session.execute(
-            select(AstNode.node_key, AstNode.id).where(AstNode.ast_document_id == document.id)
+            select(AstNode.node_key, AstNode.id).where(
+                AstNode.ast_payload_id == document.ast_payload_id
+            )
         ).all()
         node_ids: dict[str, str] = {}
         for node_key, node_id in node_rows:
@@ -254,6 +336,7 @@ class AstNodeLinkRepository(BaseRepository[AstNodeLink, "RepositoryFactory"]):
             payloads.append(
                 {
                     "id": uuid_str(),
+                    "ast_document_id": document.id,
                     "ast_node_id": node_ids[record.source_node_key],
                     "link_type": record.link_type.value,
                     "target_type": record.link_type.value,
@@ -297,4 +380,5 @@ __all__ = [
     "AstNodeLinkRepository",
     "AstNodeRepository",
     "AstParseRunRepository",
+    "AstPayloadRepository",
 ]

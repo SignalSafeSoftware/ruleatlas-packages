@@ -69,6 +69,51 @@ class AstParseRun(Base, TimestampMixin):
     summary_json: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
 
 
+class AstPayload(Base, TimestampMixin):
+    """Immutable syntax-tree payload shared by version-scoped documents."""
+
+    __tablename__ = "ast_payloads"
+    __table_args__ = (
+        UniqueConstraint(
+            "project_id",
+            "document_key",
+            "content_hash",
+            "language_key",
+            "parser_key",
+            "parser_version",
+            "grammar_key",
+            "grammar_version",
+            name="uq_ast_payloads_parser_identity",
+        ),
+        Index("ix_ast_payloads_project_content", "project_id", "content_hash"),
+        CheckConstraint(
+            "source_bytes >= 0 AND node_count >= 0 AND error_node_count >= 0",
+            name="ck_ast_payloads_counts_nonnegative",
+        ),
+        CheckConstraint(
+            "error_node_count <= node_count",
+            name="ck_ast_payloads_error_nodes_bounded",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
+    project_id: Mapped[str] = mapped_column(ForeignKey(FK_PROJECTS_ID), nullable=False)
+    document_key: Mapped[str] = mapped_column(String(512), nullable=False)
+    content_hash: Mapped[str] = mapped_column(String(128), nullable=False)
+    language_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    parser_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    parser_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    grammar_key: Mapped[str] = mapped_column(String(128), nullable=False)
+    grammar_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_bytes: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    node_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    error_node_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    root_node_id: Mapped[str | None] = mapped_column(
+        ForeignKey("ast_nodes.id", use_alter=True, name="fk_ast_payloads_root_node")
+    )
+    attributes_json: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+
+
 class AstDocument(Base, TimestampMixin):
     __tablename__ = "ast_documents"
     __table_args__ = (
@@ -85,6 +130,7 @@ class AstDocument(Base, TimestampMixin):
         ),
         Index("ix_ast_documents_project_analysis", "project_id", "analysis_version_id"),
         Index("ix_ast_documents_parse_run", "parse_run_id"),
+        Index("ix_ast_documents_payload", "ast_payload_id"),
         Index("ix_ast_documents_source_file", "source_file_id"),
         Index("ix_ast_documents_language", "language_key"),
         Index("ix_ast_documents_content_grammar", "content_hash", "grammar_version"),
@@ -103,6 +149,7 @@ class AstDocument(Base, TimestampMixin):
     analysis_version_id: Mapped[str] = mapped_column(ForeignKey("analysis_versions.id"), nullable=False)
     scan_run_id: Mapped[str | None] = mapped_column(ForeignKey(FK_SCAN_RUNS_ID))
     parse_run_id: Mapped[str] = mapped_column(ForeignKey("ast_parse_runs.id"), nullable=False)
+    ast_payload_id: Mapped[str] = mapped_column(ForeignKey("ast_payloads.id"), nullable=False)
     source_file_id: Mapped[str] = mapped_column(ForeignKey(FK_SOURCE_FILES_ID), nullable=False)
     document_key: Mapped[str] = mapped_column(String(512), nullable=False)
     source_path: Mapped[str] = mapped_column(String(1024), nullable=False)
@@ -127,22 +174,16 @@ class AstDocument(Base, TimestampMixin):
 class AstNode(Base, TimestampMixin):
     __tablename__ = "ast_nodes"
     __table_args__ = (
-        UniqueConstraint("ast_document_id", "node_key", name="uq_ast_nodes_document_key"),
+        UniqueConstraint("ast_payload_id", "node_key", name="uq_ast_nodes_payload_key"),
         UniqueConstraint(
-            "ast_document_id",
+            "ast_payload_id",
             "parent_node_id",
             "sibling_ordinal",
-            name="uq_ast_nodes_parent_ordinal",
+            name="uq_ast_nodes_payload_parent_ordinal",
         ),
-        Index(
-            "ix_ast_nodes_document_parent_ordinal",
-            "ast_document_id",
-            "parent_node_id",
-            "sibling_ordinal",
-        ),
-        Index("ix_ast_nodes_document_type", "ast_document_id", "raw_type"),
-        Index("ix_ast_nodes_document_category", "ast_document_id", "category"),
-        Index("ix_ast_nodes_document_range", "ast_document_id", "start_byte", "end_byte"),
+        Index("ix_ast_nodes_payload_type", "ast_payload_id", "raw_type"),
+        Index("ix_ast_nodes_payload_category", "ast_payload_id", "category"),
+        Index("ix_ast_nodes_payload_range", "ast_payload_id", "start_byte", "end_byte"),
         Index("ix_ast_nodes_subtree_hash", "subtree_hash"),
         CheckConstraint(
             "sibling_ordinal >= 0 AND start_byte >= 0 AND end_byte >= start_byte",
@@ -155,7 +196,7 @@ class AstNode(Base, TimestampMixin):
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
-    ast_document_id: Mapped[str] = mapped_column(ForeignKey("ast_documents.id"), nullable=False)
+    ast_payload_id: Mapped[str] = mapped_column(ForeignKey("ast_payloads.id"), nullable=False)
     parent_node_id: Mapped[str | None] = mapped_column(ForeignKey("ast_nodes.id"))
     node_key: Mapped[str] = mapped_column(String(512), nullable=False)
     sibling_ordinal: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -183,6 +224,7 @@ class AstNodeLink(Base, TimestampMixin):
     __tablename__ = "ast_node_links"
     __table_args__ = (
         Index("ix_ast_node_links_source", "ast_node_id"),
+        Index("ix_ast_node_links_document", "ast_document_id"),
         Index("ix_ast_node_links_graph_node", "graph_node_id"),
         Index("ix_ast_node_links_source_symbol", "source_symbol_id"),
         Index("ix_ast_node_links_evidence", "rule_evidence_id"),
@@ -202,6 +244,7 @@ class AstNodeLink(Base, TimestampMixin):
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
+    ast_document_id: Mapped[str] = mapped_column(ForeignKey("ast_documents.id"), nullable=False)
     ast_node_id: Mapped[str] = mapped_column(ForeignKey("ast_nodes.id"), nullable=False)
     link_type: Mapped[str] = mapped_column(String(64), nullable=False)
     target_type: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -222,4 +265,5 @@ __all__ = [
     "AstNode",
     "AstNodeLink",
     "AstParseRun",
+    "AstPayload",
 ]

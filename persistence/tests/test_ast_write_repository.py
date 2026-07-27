@@ -104,6 +104,17 @@ def _node_records(document_key: str) -> list[AstNodeRecord]:
     ]
 
 
+def _create_document(
+    repos: RepositoryFactory,
+    record: AstDocumentRecord,
+) -> AstDocument:
+    payload = repos.ast_payloads().create_for_record(record)
+    return repos.ast_documents().create_from_record(
+        record,
+        ast_payload_id=payload.id,
+    )
+
+
 def test_parse_run_lifecycle_does_not_commit(session: Session) -> None:
     repos = RepositoryFactory(session)
     row = repos.ast_parse_runs().create_from_record(_parse_run_record())
@@ -128,20 +139,19 @@ def test_parse_run_lifecycle_does_not_commit(session: Session) -> None:
     assert session.get(AstParseRun, "parse-1") is None
 
 
-def test_bulk_nodes_use_one_insert_and_assign_root(
+def test_bulk_nodes_insert_parent_layers_and_assign_root(
     session: Session,
     parser: ParserIdentity,
 ) -> None:
     repos = RepositoryFactory(session)
     repos.ast_parse_runs().create_from_record(_parse_run_record())
-    document = repos.ast_documents().create_from_record(_document_record(parser))
+    document = _create_document(repos, _document_record(parser))
     node_insert_calls = 0
 
-    def count_node_insert(_conn, _cursor, statement, _parameters, _context, executemany) -> None:
+    def count_node_insert(_conn, _cursor, statement, _parameters, _context, _executemany) -> None:
         nonlocal node_insert_calls
         if statement.lstrip().upper().startswith("INSERT INTO AST_NODES"):
             node_insert_calls += 1
-            assert executemany
 
     event.listen(session.get_bind(), "before_cursor_execute", count_node_insert)
     try:
@@ -152,7 +162,7 @@ def test_bulk_nodes_use_one_insert_and_assign_root(
     finally:
         event.remove(session.get_bind(), "before_cursor_execute", count_node_insert)
 
-    assert node_insert_calls == 1
+    assert node_insert_calls == 2
     assert document.root_node_id == ids["root"]
     assert document.node_count == 2
     assert session.scalar(select(func.count()).select_from(AstNode)) == 2
@@ -164,7 +174,7 @@ def test_bulk_nodes_reject_missing_parent(
 ) -> None:
     repos = RepositoryFactory(session)
     repos.ast_parse_runs().create_from_record(_parse_run_record())
-    document = repos.ast_documents().create_from_record(_document_record(parser))
+    document = _create_document(repos, _document_record(parser))
     nodes = _node_records(document.document_key)
     nodes[1] = AstNodeRecord(
         document_key=document.document_key,
@@ -186,7 +196,7 @@ def test_links_are_bulk_inserted_with_generic_and_typed_targets(
 ) -> None:
     repos = RepositoryFactory(session)
     repos.ast_parse_runs().create_from_record(_parse_run_record())
-    document = repos.ast_documents().create_from_record(_document_record(parser))
+    document = _create_document(repos, _document_record(parser))
     node_ids = repos.ast_nodes().bulk_create_for_document(
         document,
         _node_records(document.document_key),
@@ -228,7 +238,7 @@ def test_replace_document_deletes_old_tree_and_links(
 ) -> None:
     repos = RepositoryFactory(session)
     repos.ast_parse_runs().create_from_record(_parse_run_record())
-    original = repos.ast_documents().create_from_record(_document_record(parser))
+    original = _create_document(repos, _document_record(parser))
     node_ids = repos.ast_nodes().bulk_create_for_document(
         original,
         _node_records(original.document_key),
@@ -249,11 +259,16 @@ def test_replace_document_deletes_old_tree_and_links(
         ],
     )
 
-    replacement = repos.ast_documents().replace_for_source(_document_record(parser, content_hash="sha256:replacement"))
+    replacement_record = _document_record(parser, content_hash="sha256:replacement")
+    replacement_payload = repos.ast_payloads().create_for_record(replacement_record)
+    replacement = repos.ast_documents().replace_for_source(
+        replacement_record,
+        ast_payload_id=replacement_payload.id,
+    )
 
     assert replacement.id != original.id
     assert session.scalar(select(func.count()).select_from(AstDocument)) == 1
-    assert session.scalar(select(func.count()).select_from(AstNode)) == 0
+    assert session.scalar(select(func.count()).select_from(AstNode)) == 2
     assert session.scalar(select(func.count()).select_from(AstNodeLink)) == 0
 
 
@@ -263,7 +278,7 @@ def test_scoped_delete_cannot_remove_another_project_document(
 ) -> None:
     repos = RepositoryFactory(session)
     repos.ast_parse_runs().create_from_record(_parse_run_record())
-    document = repos.ast_documents().create_from_record(_document_record(parser))
+    document = _create_document(repos, _document_record(parser))
 
     removed = repos.ast_documents().delete_scoped(
         project_id="other-project",

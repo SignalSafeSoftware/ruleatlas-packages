@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 import ruleatlas_persistence.models as _models  # noqa: F401
 from ruleatlas_persistence.base import Base
-from ruleatlas_persistence.models import AstDocument, AstNode, AstNodeLink
+from ruleatlas_persistence.models import AstDocument, AstNode, AstNodeLink, AstPayload
 from ruleatlas_persistence.repositories import RepositoryFactory
 from ruleatlas_persistence.repositories.ast_read_repository import AstNodeCursor
 
@@ -38,6 +38,7 @@ def _document(
         project_id=project_id,
         analysis_version_id=analysis_version_id,
         parse_run_id=f"parse-{document_id}",
+        ast_payload_id=f"payload-{document_id}",
         source_file_id=source_file_id,
         document_key=f"src/{document_id}.py",
         source_path=f"src/{document_id}.py",
@@ -65,7 +66,7 @@ def _node(
 ) -> AstNode:
     return AstNode(
         id=node_id,
-        ast_document_id=document_id,
+        ast_payload_id=f"payload-{document_id}",
         parent_node_id=parent_id,
         node_key=node_id,
         sibling_ordinal=ordinal,
@@ -82,6 +83,20 @@ def _node(
 
 
 def _seed_tree(session: Session) -> None:
+    session.add(
+        AstPayload(
+            id="payload-doc-1",
+            project_id="project-1",
+            document_key="src/doc-1.py",
+            content_hash="sha256:doc-1",
+            language_key="python",
+            parser_key="tree_sitter",
+            parser_version="0.26.0",
+            grammar_key="tree-sitter-python",
+            grammar_version="0.25.0",
+            source_bytes=100,
+        )
+    )
     session.add(_document())
     session.add_all(
         [
@@ -273,6 +288,7 @@ def test_parent_and_links_cannot_cross_scope(session: Session) -> None:
     session.add(
         AstNodeLink(
             id="link-1",
+            ast_document_id="doc-1",
             ast_node_id="call",
             link_type=AstLinkType.REFERENCE.value,
             target_type=AstLinkType.REFERENCE.value,

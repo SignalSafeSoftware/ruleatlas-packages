@@ -83,6 +83,19 @@ class AstQueryRepository:
     ) -> AstNode | None:
         return self._session.scalar(self._node_scope(project_id, analysis_version_id).where(AstNode.id == node_id))
 
+    def get_document_for_node(
+        self,
+        *,
+        project_id: str,
+        analysis_version_id: str,
+        node_id: str,
+    ) -> AstDocument | None:
+        return self._session.scalar(
+            self._document_scope(project_id, analysis_version_id)
+            .join(AstNode, AstNode.ast_payload_id == AstDocument.ast_payload_id)
+            .where(AstNode.id == node_id)
+        )
+
     def get_parent(
         self,
         *,
@@ -121,7 +134,7 @@ class AstQueryRepository:
         if parent is None:
             return AstNodePage(items=[], next_cursor=None)
         statement = self._node_scope(project_id, analysis_version_id).where(
-            AstNode.ast_document_id == parent.ast_document_id,
+            AstNode.ast_payload_id == parent.ast_payload_id,
             AstNode.parent_node_id == parent.id,
         )
         if cursor is not None:
@@ -171,7 +184,7 @@ class AstQueryRepository:
                 self._session.scalars(
                     self._node_scope(project_id, analysis_version_id)
                     .where(
-                        AstNode.ast_document_id == root.ast_document_id,
+                        AstNode.ast_payload_id == root.ast_payload_id,
                         AstNode.parent_node_id.in_(frontier),
                     )
                     .order_by(AstNode.parent_node_id, AstNode.sibling_ordinal, AstNode.id)
@@ -208,7 +221,7 @@ class AstQueryRepository:
 
         statement = self._node_scope(project_id, analysis_version_id)
         if document_id is not None:
-            statement = statement.where(AstNode.ast_document_id == document_id)
+            statement = statement.where(AstDocument.id == document_id)
         if raw_types:
             statement = statement.where(AstNode.raw_type.in_(raw_types))
         if categories:
@@ -242,7 +255,7 @@ class AstQueryRepository:
         return self._session.scalar(
             self._node_scope(project_id, analysis_version_id)
             .where(
-                AstNode.ast_document_id == document_id,
+                AstDocument.id == document_id,
                 AstNode.start_byte <= byte_offset,
                 AstNode.end_byte > byte_offset,
             )
@@ -289,12 +302,11 @@ class AstQueryRepository:
         page_size = self._bounded_limit(limit)
         statement = (
             select(AstNodeLink)
-            .join(AstNode, AstNode.id == AstNodeLink.ast_node_id)
-            .join(AstDocument, AstDocument.id == AstNode.ast_document_id)
+            .join(AstDocument, AstDocument.id == AstNodeLink.ast_document_id)
             .where(
                 AstDocument.project_id == project_id,
                 AstDocument.analysis_version_id == analysis_version_id,
-                AstNode.id == node_id,
+                AstNodeLink.ast_node_id == node_id,
             )
         )
         if link_types:
@@ -324,7 +336,7 @@ class AstQueryRepository:
     def _node_scope(project_id: str, analysis_version_id: str) -> Select[tuple[AstNode]]:
         return (
             select(AstNode)
-            .join(AstDocument, AstDocument.id == AstNode.ast_document_id)
+            .join(AstDocument, AstDocument.ast_payload_id == AstNode.ast_payload_id)
             .where(
                 AstDocument.project_id == project_id,
                 AstDocument.analysis_version_id == analysis_version_id,

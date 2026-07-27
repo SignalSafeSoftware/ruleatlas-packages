@@ -42,6 +42,7 @@ from ruleatlas_persistence.repositories.ast_write_repository import (
     AstNodeLinkRepository,
     AstNodeRepository,
     AstParseRunRepository,
+    AstPayloadRepository,
 )
 from ruleatlas_persistence.repositories.audit_repository import AuditRepository
 from ruleatlas_persistence.repositories.bdd_repository import (
@@ -220,6 +221,9 @@ class RepositoryFactory(SqlPhilosophyRepositoryFactory):
 
     def ast_documents(self) -> AstDocumentRepository:
         return self.get_repository(AstDocumentRepository)
+
+    def ast_payloads(self) -> AstPayloadRepository:
+        return self.get_repository(AstPayloadRepository)
 
     def ast_nodes(self) -> AstNodeRepository:
         return self.get_repository(AstNodeRepository)
