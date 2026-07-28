@@ -110,6 +110,27 @@ def test_valid_ast_proposal_preserves_observation_intent_and_provenance() -> Non
     assert proposal.provider_key == "openai"
 
 
+def test_serialized_transport_citations_accept_kind_discriminators() -> None:
+    payload = _payload()
+    payload["ast_citations"] = [
+        payload["ast_citations"][0].to_dict()  # type: ignore[index, union-attr]
+    ]
+    evidence = payload["supporting_evidence_citations"][0]  # type: ignore[index]
+    payload["supporting_evidence_citations"] = [
+        {
+            "role": evidence.role,  # type: ignore[union-attr]
+            "citation": evidence.citation.to_dict(),  # type: ignore[union-attr]
+            "supports_fields": evidence.supports_fields,  # type: ignore[union-attr]
+        }
+    ]
+
+    proposal, errors = validate_ast_proposal_payload(payload)
+
+    assert errors == []
+    assert proposal is not None
+    assert proposal.ast_citations[0].node_key == "node-condition"
+
+
 def test_ast_and_supporting_citations_are_both_required() -> None:
     for field_name in ("ast_citations", "supporting_evidence_citations"):
         payload = _payload()

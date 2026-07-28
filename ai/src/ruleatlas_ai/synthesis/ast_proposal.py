@@ -95,10 +95,33 @@ class AstRuleProposal(BaseModel):
 def validate_ast_proposal_payload(
     payload: dict[str, Any],
 ) -> tuple[AstRuleProposal | None, list[str]]:
+    normalized = dict(payload)
+    normalized["ast_citations"] = [
+        _without_transport_kind(citation)
+        for citation in payload.get("ast_citations", [])
+    ]
+    normalized["supporting_evidence_citations"] = [
+        {
+            **evidence,
+            "citation": _without_transport_kind(evidence.get("citation")),
+        }
+        if isinstance(evidence, dict)
+        else evidence
+        for evidence in payload.get("supporting_evidence_citations", [])
+    ]
     try:
-        return AstRuleProposal.model_validate(payload), []
+        return AstRuleProposal.model_validate(normalized), []
     except ValidationError as exc:
-        return None, [error["msg"] for error in exc.errors()]
+        return None, [
+            f"{'.'.join(str(part) for part in error['loc'])}: {error['msg']}"
+            for error in exc.errors()
+        ]
+
+
+def _without_transport_kind(value: Any) -> Any:
+    if not isinstance(value, dict):
+        return value
+    return {key: item for key, item in value.items() if key != "kind"}
 
 
 def ast_proposal_json_schema() -> dict[str, Any]:
