@@ -89,7 +89,13 @@ def _draft_matches_domain(wording: str, family: str, semantics: StructuredSemant
         days = semantics.timing.split("_")[0]
         return days in wording and "expir" in lower
     if family == "delete":
-        return "delet" in lower and ("paid" in lower or (semantics.state or "") in lower)
+        state = (semantics.state or "").strip().lower()
+        object_name = (semantics.object or "").strip().lower()
+        return (
+            "delet" in lower
+            and state == "paid"
+            and ("invoice" in lower or "invoice" in object_name)
+        )
     return False
 
 
