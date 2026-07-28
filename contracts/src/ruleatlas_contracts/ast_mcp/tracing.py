@@ -54,9 +54,15 @@ class AstMcpTraceMetadata:
     def _validate_attribute_values(cls, value: dict[str, Any]) -> None:
         for item in value.values():
             if isinstance(item, list):
-                if any(nested is not None and not isinstance(nested, (str, int, float, bool)) for nested in item):
+                if any(
+                    nested is not None
+                    and not isinstance(nested, str | int | float | bool)
+                    for nested in item
+                ):
                     raise ValueError("trace attribute lists must contain only JSON scalar values")
-            elif item is not None and not isinstance(item, (str, int, float, bool)):
+            elif item is not None and not isinstance(
+                item, str | int | float | bool
+            ):
                 raise ValueError("trace attributes must contain JSON scalar values")
 
     def to_dict(self) -> dict[str, object]:

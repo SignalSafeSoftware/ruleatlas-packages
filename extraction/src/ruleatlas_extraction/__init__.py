@@ -1,15 +1,7 @@
-"""RuleAtlas rule-candidate extraction.
+"""Provider-neutral RuleAtlas extraction contracts and BDD ingestion.
 
-Turns source files (and BDD specs, comments, docs) into **candidate claims** — never confirmed rules. This
-is the heuristic/text-first extraction layer: it reads file text, applies keyword/regex/structural
-heuristics, and emits ``ClaimDraft``-shaped candidates with evidence spans (path + line range + snippet)
-and a capped confidence.
-
-Boundary: depends on ``ruleatlas-contracts`` (claim/enum types) and ``ruleatlas-discovery`` (file typing).
-It must not import persistence, API, or AI packages — extraction produces candidates; storing them and
-enriching them with AI happen downstream (``apps/api`` + ``ruleatlas-ai``).
-
-Status: SCAFFOLD. See ``README.md`` and ``docs/architecture/package-decomposition.md``.
+Business-rule generation belongs to the AST/MCP/AI investigation path. This
+package intentionally contains no source-pattern rule generator.
 """
 
 from __future__ import annotations

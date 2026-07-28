@@ -24,7 +24,9 @@ Companion application plan: `ruleatlas/docs/roadmap/ast-mcp-ai-rule-discovery-pl
 | `PKG-AI-004` AST agent provider capabilities | Complete | Ruff, strict mypy, 52 AI tests, and package build passed |
 | `PKG-CLAIMS-001` normalize validated AST proposals | Complete | Ruff, strict mypy, 15 claims tests, 53 AI tests, and both package builds passed |
 | `PKG-CLAIMS-002` score AST-backed evidence | Complete | Ruff, strict mypy, 26 claims tests, and package build passed |
-| `PKG-CLEAN-001` remove heuristic generation | Gated | Do not start until application comparison, scale, security, and rollback gates pass |
+| `PKG-CLEAN-001` remove heuristic generation | Complete | Generator, comment classifier, and extractor protocol removed; 4 tests and Ruff pass |
+| `PKG-CLEAN-002` narrow extraction responsibility | Complete | Package now owns provider-neutral schemas and BDD ingestion |
+| `PKG-CLEAN-003` refresh documentation | Complete | Root/package README, changelog, and this checklist updated |
 
 ## 1. Purpose
 
@@ -569,23 +571,23 @@ Commit: `feat(claims): score AST-backed evidence`
 
 ### Package phase 6 — heuristic retirement
 
-Do not begin until the application repository passes comparison, scale, security, and rollback gates.
+The application cutover made AST/AI authoritative before these removals.
 
 #### PKG-CLEAN-001 — Remove heuristic rule generation
 
-Likely removals:
+Removed:
 
 - `extraction/src/ruleatlas_extraction/heuristic_extractor.py`
 - `extraction/src/ruleatlas_extraction/comment_classifier.py`
-- heuristic-specific tests and exports
+- the obsolete extractor protocol
 
-Likely retained:
+Retained:
 
 - BDD/Gherkin parsing;
 - generic evidence contracts;
 - source candidate DTOs only if still used by non-heuristic importers.
 
-Current direct production deletion is approximately 1,022 lines before tests/docs.
+The package no longer exposes a source-pattern business-rule generator.
 
 Acceptance:
 
@@ -597,11 +599,10 @@ Commit: `refactor(extraction): remove heuristic rule generator`
 
 #### PKG-CLEAN-002 — Deprecate or reshape the extraction package
 
-Decision:
+Completed decision:
 
-- If remaining code is only BDD ingestion, rename package scope in documentation and exports.
-- If generic extraction contracts have moved elsewhere, mark the package deprecated.
-- Do not perform a package rename in the same commit as heuristic removal.
+- Keep the package name for compatibility.
+- Narrow its documented scope to provider-neutral candidate schemas and BDD ingestion.
 
 Commit: `refactor(extraction): narrow package responsibility`
 

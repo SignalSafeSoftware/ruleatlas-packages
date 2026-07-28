@@ -13,3 +13,9 @@ The version is sourced from `src/ruleatlas_extraction/version.py`.
 ### Notes
 - Depends on `ruleatlas-contracts`, `ruleatlas-discovery`, `ruleatlas-persistence`, `pydantic`, `gherkin-official`.
 - File-reading/pipeline orchestrators (`service`, `file_reader`, `rule_writer`) remain in `apps/api`.
+
+## Unreleased
+
+### Removed
+- Source-pattern and comment-pattern business-rule generators. New candidate
+  rules are produced only by the cited AST/MCP/AI investigation path.

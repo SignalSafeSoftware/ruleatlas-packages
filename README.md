@@ -12,7 +12,7 @@ enforceable, acyclic boundaries. Full plan:
 | `discovery-core` | **extracted / in use** — file typing, globbing, metrics, dir tree + scanning utilities (`file_type_registry`, `line_metrics`, `production_bucket`, `classification_signals`, `source_path_display`, `analyzer_sandbox`) |
 | `persistence` | **extracted / in use, shims removed** — the whole ORM ring (`Base` + mixins + `enum_column` + all ORM models (85 tables) + `append_only` + `inventory_keyword` + all ~55 `repositories/` + `RepositoryFactory`); ~490 importers repointed to `ruleatlas_persistence.*`, `infrastructure.db.*` shims deleted (only `session` stays in the app) |
 | `claims` | **extracted / in use** — the pure rule-IR domain: `claim_service`, `structured_semantics`, `clustering/`, `conflicts/`, `gaps/`, `rules/`, `graph/`, `semantic/` (+ `confidence_scorer`, `relationship_suggester`, `text_normalize`). App keeps the audit/service-factory orchestrators (`cluster_service`, `rule_identity`, scoring adapters). |
-| `extraction` | **extracted / in use** — pure candidate extraction: `heuristic_extractor`, `comment_classifier`, `extractor`, `schemas`, and BDD (`bdd/`). App keeps the file-reading/pipeline orchestrators (`service`, `file_reader`, `rule_writer`). |
+| `extraction` | **extracted / in use** — provider-neutral candidate schemas and BDD ingestion. Business-rule generation runs through AST/MCP/AI in the application. |
 | `ai` | **extracted / in use** — pure AI domain: `budget`, `providers/` (probes, protocols, validation), `synthesis/` (schema, validation, wording). App keeps provider adapters + governance/connection/synthesis-workflow orchestrators. |
 | `exports` | **extracted / in use (pure core)** — pure formatters (`csv_safety`, `export_labels`, `markdown_builder`, `report_types`). The report *builders* orchestrate app queries/scanning and stay in the app by design. |
 | `demo` | **stays in `apps/api`** — the leaf composition/seed layer orchestrates every context (incl. app-tier ai/pipeline); nothing depends on it, so a package would only add a package→app cycle. |
@@ -24,7 +24,7 @@ packages/
 ├── contracts/       ruleatlas-contracts   — shared kernel (enums, value objects, provider/claim contracts)
 ├── discovery-core/  ruleatlas-discovery   — file typing, globbing, line metrics, dir tree
 ├── persistence/     ruleatlas-persistence — SQLAlchemy models, repositories, Base (the shared DB layer)
-├── extraction/      ruleatlas-extraction  — heuristic/BDD/comment candidate extraction
+├── extraction/      ruleatlas-extraction  — candidate contracts and BDD ingestion
 ├── claims/          ruleatlas-claims      — rule IR: claims, graph, clustering, conflicts, gaps
 ├── ai/              ruleatlas-ai          — AI providers, governance, cluster→candidate-rule synthesis
 ├── exports/         ruleatlas-exports     — report/CSV/artifact builders

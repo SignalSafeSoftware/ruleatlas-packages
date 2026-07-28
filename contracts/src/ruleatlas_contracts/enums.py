@@ -75,6 +75,7 @@ class AnalysisOutcomeStatus(StrEnum):
 
 
 class ExtractionMethod(StrEnum):
+    AST_AI = "ast_ai"
     HEURISTIC = "heuristic"
     AI_SYNTHESIS = "ai_synthesis"
     COMPOSITE = "composite"
