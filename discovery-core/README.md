@@ -57,12 +57,16 @@ source, test, config, and generated/vendor files across the supported matrix. Ex
 identically.
 
 ```python
-from ruleatlas_discovery import classify_file  # illustrative; see __all__ for exact surface
+from ruleatlas_discovery import classify_file_type
 
-classify_file("src/billing/approvals.ts")
-# → language="TypeScript", display_type="TypeScript source", is_test=False, is_generated=False
-classify_file("src/billing/approvals.test.ts")
-# → language="TypeScript", is_test=True   → downstream evidence = UNIT_TEST
+source = classify_file_type("src/billing/approvals.ts")
+assert source.language == "TypeScript"
+assert source.display_type == "TypeScript source"
+assert source.is_generated_hint is False
+
+test = classify_file_type("src/billing/approvals.test.ts")
+assert test.language == "TypeScript"
+assert test.default_bucket_hint == "tests"
 ```
 
 ## Public API

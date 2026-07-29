@@ -1,37 +1,73 @@
 name: release
 
-# Publishes every RuleAtlas package to PyPI when a version tag (v*) is pushed.
+# Publishes one RuleAtlas package after a package-specific version tag is pushed.
 #
 # Uses PyPI Trusted Publishing (OIDC) — no long-lived token. One-time setup per package on PyPI:
 #   PyPI > project > Publishing > add a GitHub trusted publisher with
 #     owner: SignalSafeSoftware, repo: ruleatlas-packages, workflow: release.yml, environment: pypi
-# Publish order doesn't matter (wheels declare deps by name+version; they resolve at install time).
+# Example: contracts-v0.1.0 publishes only the contracts package after validating
+# that its source version is 0.1.0.
 
 on:
   push:
-    tags: ["v*"]
-  workflow_dispatch:
+    tags:
+      - "contracts-v*"
+      - "persistence-v*"
+      - "discovery-core-v*"
+      - "claims-v*"
+      - "extraction-v*"
+      - "exports-v*"
+      - "ai-v*"
+      - "demo-v*"
 
 jobs:
-  pypi:
+  validate:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        package: [contracts, persistence, discovery-core, claims, extraction, exports, ai, demo]
+    outputs:
+      package: ${{ steps.tag.outputs.package }}
+      version: ${{ steps.tag.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Install uv
+        uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9 # v7
+        with:
+          python-version: "3.12"
+      - name: Validate release tag
+        id: tag
+        run: python scripts/verify-release-tag.py "$GITHUB_REF_NAME" --github-output "$GITHUB_OUTPUT"
+      - name: Sync workspace
+        run: uv sync --all-extras
+      - name: Enforce cross-package DAG
+        run: uv run --with 'import-linter<2.0' lint-imports --config .importlinter
+      - name: Validate all packages
+        run: |
+          for package in contracts persistence discovery-core claims extraction exports ai demo; do
+            (
+              cd "$package"
+              uv sync --all-extras
+              uv run --all-extras ruff check src
+              if grep -q '\[tool.mypy\]' pyproject.toml; then uv run --all-extras mypy src; fi
+              uv run --all-extras python -m pytest -q
+              uv build --out-dir "$PWD/dist"
+            )
+          done
+
+  pypi:
+    needs: validate
+    runs-on: ubuntu-latest
     environment: pypi
     permissions:
       id-token: write  # required for PyPI trusted publishing (OIDC)
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Install uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9 # v7
         with:
           python-version: "3.12"
-      - name: Build ${{ matrix.package }}
-        working-directory: ${{ matrix.package }}
-        run: uv build
-      - name: Publish ${{ matrix.package }} to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
+      - name: Build ${{ needs.validate.outputs.package }}
+        working-directory: ${{ needs.validate.outputs.package }}
+        run: uv build --out-dir "$PWD/dist"
+      - name: Publish ${{ needs.validate.outputs.package }} to PyPI
+        uses: pypa/gh-action-pypi-publish@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # release/v1
         with:
-          packages-dir: ${{ matrix.package }}/dist
+          packages-dir: ${{ needs.validate.outputs.package }}/dist

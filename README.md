@@ -4,6 +4,10 @@ Installable packages extracted from the `apps/api` backend to make the codebase 
 enforceable, acyclic boundaries. Full plan:
 [`docs/architecture/package-decomposition.md`](https://github.com/SignalSafeSoftware/ruleatlas/blob/main/docs/architecture/package-decomposition.md).
 
+**Current state:** [docs/current-state-summary.md](docs/current-state-summary.md)
+
+**Audit:** [docs/audit-findings-2026-07-28.md](docs/audit-findings-2026-07-28.md)
+
 ## Status
 
 | Package | State |
@@ -15,7 +19,7 @@ enforceable, acyclic boundaries. Full plan:
 | `extraction` | **extracted / in use** — provider-neutral candidate schemas and BDD ingestion. Business-rule generation runs through AST/MCP/AI in the application. |
 | `ai` | **extracted / in use** — pure AI domain: `budget`, `providers/` (probes, protocols, validation), `synthesis/` (schema, validation, wording). App keeps provider adapters + governance/connection/synthesis-workflow orchestrators. |
 | `exports` | **extracted / in use (pure core)** — pure formatters (`csv_safety`, `export_labels`, `markdown_builder`, `report_types`). The report *builders* orchestrate app queries/scanning and stay in the app by design. |
-| `demo` | **stays in `apps/api`** — the leaf composition/seed layer orchestrates every context (incl. app-tier ai/pipeline); nothing depends on it, so a package would only add a package→app cycle. |
+| `demo` | **extracted / dev-only leaf** — demo and seed generators compose the package graph for development; production packages do not depend on it. |
 
 ## Layout
 
@@ -72,6 +76,8 @@ claim-level normalization is preferred over a universal syntax tree.
 
 ```bash
 cd packages/<name>
-uv sync --extra dev
-python -m pytest && python -m mypy src && python -m ruff check src tests
+uv sync --all-extras
+uv run --all-extras pytest
+uv run --all-extras mypy src
+uv run --all-extras ruff check src tests
 ```

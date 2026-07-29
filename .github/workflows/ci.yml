@@ -21,33 +21,33 @@ jobs:
       matrix:
         package: [contracts, persistence, discovery-core, claims, extraction, exports, ai, demo]
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Install uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9 # v7
         with:
           python-version: "3.12"
       - name: Sync (${{ matrix.package }})
         working-directory: ${{ matrix.package }}
-        run: uv sync --extra dev
+        run: uv sync --all-extras
       - name: Ruff (${{ matrix.package }})
         working-directory: ${{ matrix.package }}
-        run: uv run ruff check src
+        run: uv run --all-extras ruff check src
       - name: Mypy (${{ matrix.package }}, if configured)
         working-directory: ${{ matrix.package }}
-        run: if grep -q '\[tool.mypy\]' pyproject.toml; then uv run mypy src; else echo "no mypy config - skipping"; fi
+        run: if grep -q '\[tool.mypy\]' pyproject.toml; then uv run --all-extras mypy src; else echo "no mypy config - skipping"; fi
       - name: Pytest (${{ matrix.package }})
         working-directory: ${{ matrix.package }}
-        run: uv run python -m pytest -q
+        run: uv run --all-extras python -m pytest -q
       - name: Build wheel + sdist (${{ matrix.package }})
         working-directory: ${{ matrix.package }}
-        run: uv build
+        run: uv build --out-dir "$PWD/dist"
 
   import-linter:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Install uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9 # v7
         with:
           python-version: "3.12"
       - name: Sync workspace

@@ -1,6 +1,6 @@
 # Package plan for AST/MCP/AI business-rule discovery
 
-Status: implemented; cutover validation in progress
+Status: implementation and package validation complete; application production-scale signoff pending
 Primary repository: `ruleatlas-packages`  
 Companion application plan: `ruleatlas/docs/roadmap/ast-mcp-ai-rule-discovery-plan.md`
 
