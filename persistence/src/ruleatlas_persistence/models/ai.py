@@ -251,6 +251,7 @@ class ProjectAiConfiguration(Base, TimestampMixin):
     synthesis_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     allow_deterministic_fallback: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     require_real_provider: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    auto_continue_ast_ai: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     reasoning_effort: Mapped[str | None] = mapped_column(String(32))
     temperature: Mapped[float | None] = mapped_column(Float)
     maximum_input_tokens: Mapped[int | None] = mapped_column(Integer)
