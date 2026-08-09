@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
+from dataclasses import replace
 
 import pytest
 from ruleatlas_contracts.ast import (
@@ -164,6 +165,7 @@ def test_bulk_nodes_insert_once_and_assign_root(
 
     assert node_insert_calls == 1
     assert document.root_node_id == ids["root"]
+    assert document.root_node_key == "root"
     assert document.node_count == 2
     assert session.scalar(select(func.count()).select_from(AstNode)) == 2
     blob = session.scalar(
@@ -172,6 +174,33 @@ def test_bulk_nodes_insert_once_and_assign_root(
     assert blob is not None
     assert blob.node_count == document.node_count
     assert blob.root_node_key == "root"
+    payload = session.get(AstPayload, document.ast_payload_id)
+    assert payload is not None
+    assert payload.root_node_key == "root"
+
+
+def test_packed_node_persistence_avoids_relational_projection(
+    session: Session,
+    parser: ParserIdentity,
+) -> None:
+    repos = RepositoryFactory(session)
+    repos.ast_parse_runs().create_from_record(_parse_run_record())
+    document = _create_document(repos, _document_record(parser))
+
+    repos.ast_nodes().persist_packed_for_document(
+        document,
+        _node_records(document.document_key),
+    )
+
+    assert session.scalar(select(func.count()).select_from(AstNode)) == 0
+    assert document.root_node_id is None
+    assert document.root_node_key == "root"
+    blob = session.scalar(
+        select(AstPayloadBlob).where(AstPayloadBlob.ast_payload_id == document.ast_payload_id)
+    )
+    assert blob is not None
+    assert blob.root_node_key == "root"
+    assert blob.node_count == 2
 
 
 def test_payload_blob_decode_is_scope_bound_and_matches_relational_nodes(
@@ -203,6 +232,53 @@ def test_payload_blob_decode_is_scope_bound_and_matches_relational_nodes(
         )
         is None
     )
+
+
+def test_payload_blob_bulk_decode_is_bounded_scope_checked_and_single_query(
+    session: Session,
+    parser: ParserIdentity,
+) -> None:
+    repos = RepositoryFactory(session)
+    repos.ast_parse_runs().create_from_record(_parse_run_record())
+    first = _create_document(repos, _document_record(parser))
+    second_record = replace(
+        _document_record(parser, content_hash="sha256:second"),
+        document_key="src/billing.py:sha256:second",
+        source_file_id="file-2",
+        source_path="src/billing.py",
+    )
+    second = _create_document(repos, second_record)
+    repos.ast_nodes().bulk_create_for_document(first, _node_records(first.document_key))
+    repos.ast_nodes().bulk_create_for_document(second, _node_records(second.document_key))
+
+    select_calls = 0
+
+    def count_selects(_conn, _cursor, statement, _parameters, _context, _executemany) -> None:
+        nonlocal select_calls
+        if statement.lstrip().upper().startswith("SELECT"):
+            select_calls += 1
+
+    event.listen(session.get_bind(), "before_cursor_execute", count_selects)
+    try:
+        decoded = repos.ast_payload_blobs().decode_for_documents(
+            project_id="project-1",
+            analysis_version_id="analysis-1",
+            document_ids=[first.id, second.id, "other-document"],
+            cache=False,
+        )
+    finally:
+        event.remove(session.get_bind(), "before_cursor_execute", count_selects)
+
+    assert set(decoded) == {first.id, second.id}
+    assert decoded[first.id].document_key == first.document_key
+    assert decoded[second.id].document_key == second.document_key
+    assert select_calls == 1
+    with pytest.raises(ValueError, match="bounded batch size"):
+        repos.ast_payload_blobs().decode_for_documents(
+            project_id="project-1",
+            analysis_version_id="analysis-1",
+            document_ids=[f"document-{index}" for index in range(65)],
+        )
 
 
 def test_payload_blob_backfill_is_bounded_resumable_and_verifies_each_payload(
@@ -281,7 +357,7 @@ def test_links_are_bulk_inserted_with_generic_and_typed_targets(
     repos = RepositoryFactory(session)
     repos.ast_parse_runs().create_from_record(_parse_run_record())
     document = _create_document(repos, _document_record(parser))
-    node_ids = repos.ast_nodes().bulk_create_for_document(
+    repos.ast_nodes().bulk_create_for_document(
         document,
         _node_records(document.document_key),
     )
@@ -290,11 +366,13 @@ def test_links_are_bulk_inserted_with_generic_and_typed_targets(
             document_key=document.document_key,
             source_node_key="condition",
             link_type=AstLinkType.CALL_TARGET,
-            target_id=node_ids["root"],
+            target_id="root",
             resolution_type=AstResolutionType.RESOLVED,
             resolver_key="test",
             resolver_version="1",
             confidence=0.9,
+            target_document_key=document.document_key,
+            target_node_key="root",
         ),
         AstLinkRecord(
             document_key=document.document_key,
@@ -311,17 +389,28 @@ def test_links_are_bulk_inserted_with_generic_and_typed_targets(
     assert repos.ast_node_links().bulk_create_for_document(document, links) == 2
     rows = list(session.scalars(select(AstNodeLink).order_by(AstNodeLink.link_type)))
     by_type = {row.link_type: row for row in rows}
+    assert by_type[AstLinkType.CALL_TARGET.value].ast_node_id is None
     assert by_type[AstLinkType.CALL_TARGET.value].ast_node_key == "condition"
-    assert by_type[AstLinkType.CALL_TARGET.value].target_ast_node_id == node_ids["root"]
+    assert by_type[AstLinkType.CALL_TARGET.value].target_ast_node_id is None
     assert by_type[AstLinkType.CALL_TARGET.value].target_ast_document_id == document.id
     assert by_type[AstLinkType.CALL_TARGET.value].target_ast_node_key == "root"
     assert by_type[AstLinkType.RELATED_BDD_SCENARIO.value].target_id == "scenario-1"
     assert by_type[AstLinkType.RELATED_BDD_SCENARIO.value].target_ast_node_id is None
+    node_ids: dict[str, str] = {}
+    for node_key, node_id in session.execute(
+        select(AstNode.node_key, AstNode.id).where(
+            AstNode.ast_payload_id == document.ast_payload_id
+        )
+    ).tuples():
+        node_ids[node_key] = node_id
+    # The bounded backfills remain for records written before packed pointers.
+    by_type[AstLinkType.CALL_TARGET.value].ast_node_id = node_ids["condition"]
     by_type[AstLinkType.CALL_TARGET.value].ast_node_key = None
     session.flush()
     assert repos.ast_node_links().backfill_stable_node_keys(limit=1) == 1
     session.expire(by_type[AstLinkType.CALL_TARGET.value])
     assert by_type[AstLinkType.CALL_TARGET.value].ast_node_key == "condition"
+    by_type[AstLinkType.CALL_TARGET.value].target_ast_node_id = node_ids["root"]
     by_type[AstLinkType.CALL_TARGET.value].target_ast_document_id = None
     by_type[AstLinkType.CALL_TARGET.value].target_ast_node_key = None
     session.flush()
@@ -329,6 +418,72 @@ def test_links_are_bulk_inserted_with_generic_and_typed_targets(
     session.expire(by_type[AstLinkType.CALL_TARGET.value])
     assert by_type[AstLinkType.CALL_TARGET.value].target_ast_document_id == document.id
     assert by_type[AstLinkType.CALL_TARGET.value].target_ast_node_key == "root"
+    with pytest.raises(ValueError, match="target AST node is missing"):
+        repos.ast_node_links().bulk_create_for_document(
+            document,
+            [
+                AstLinkRecord(
+                    document_key=document.document_key,
+                    source_node_key="condition",
+                    link_type=AstLinkType.CALL_TARGET,
+                    target_id="missing-node",
+                    resolution_type=AstResolutionType.RESOLVED,
+                    resolver_key="test",
+                    resolver_version="1",
+                    confidence=0.9,
+                )
+            ],
+        )
+
+
+def test_target_pointer_backfill_respects_source_analysis_version(
+    session: Session,
+    parser: ParserIdentity,
+) -> None:
+    repos = RepositoryFactory(session)
+    first_run = _parse_run_record()
+    repos.ast_parse_runs().create_from_record(first_run)
+    first = _create_document(repos, _document_record(parser))
+    node_ids = repos.ast_nodes().bulk_create_for_document(first, _node_records(first.document_key))
+
+    second_run = replace(
+        first_run,
+        parse_run_id="parse-2",
+        analysis_version_id="analysis-2",
+        scan_run_id="scan-2",
+    )
+    repos.ast_parse_runs().create_from_record(second_run)
+    second_record = replace(
+        _document_record(parser),
+        analysis_version_id="analysis-2",
+        parse_run_id=second_run.parse_run_id,
+        scan_run_id=second_run.scan_run_id,
+    )
+    second = repos.ast_documents().create_from_record(
+        second_record,
+        ast_payload_id=first.ast_payload_id,
+    )
+    assert second.ast_payload_id == first.ast_payload_id
+
+    link = AstNodeLink(
+        ast_document_id=second.id,
+        ast_node_id=node_ids["condition"],
+        link_type=AstLinkType.CALL_TARGET.value,
+        target_type=AstLinkType.CALL_TARGET.value,
+        target_id="root",
+        target_ast_node_id=node_ids["root"],
+        resolution_type=AstResolutionType.RESOLVED.value,
+        resolver_key="test",
+        resolver_version="1",
+        confidence=0.9,
+    )
+    session.add(link)
+    session.flush()
+
+    assert repos.ast_node_links().backfill_stable_target_node_pointers(limit=1) == 1
+    session.expire(link)
+    assert link.target_ast_document_id == second.id
+    assert link.target_ast_node_key == "root"
 
 
 def test_replace_document_deletes_old_tree_and_links(

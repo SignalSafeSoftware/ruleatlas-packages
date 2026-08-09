@@ -111,6 +111,7 @@ class AstPayload(Base, TimestampMixin):
     root_node_id: Mapped[str | None] = mapped_column(
         ForeignKey("ast_nodes.id", use_alter=True, name="fk_ast_payloads_root_node")
     )
+    root_node_key: Mapped[str | None] = mapped_column(String(512))
     attributes_json: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
 
 
@@ -202,6 +203,7 @@ class AstDocument(Base, TimestampMixin):
     root_node_id: Mapped[str | None] = mapped_column(
         ForeignKey("ast_nodes.id", use_alter=True, name="fk_ast_documents_root_node")
     )
+    root_node_key: Mapped[str | None] = mapped_column(String(512))
     parse_duration_ms: Mapped[int | None] = mapped_column(Integer)
     error_message: Mapped[str | None] = mapped_column(Text)
     attributes_json: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
@@ -294,7 +296,9 @@ class AstNodeLink(Base, TimestampMixin):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
     ast_document_id: Mapped[str] = mapped_column(ForeignKey("ast_documents.id"), nullable=False)
-    ast_node_id: Mapped[str] = mapped_column(ForeignKey("ast_nodes.id"), nullable=False)
+    # The document/key pair is the durable packed-payload source pointer.  The
+    # UUID remains populated for legacy rows during the RA-01 expand phase.
+    ast_node_id: Mapped[str | None] = mapped_column(ForeignKey("ast_nodes.id"))
     ast_node_key: Mapped[str | None] = mapped_column(String(512))
     link_type: Mapped[str] = mapped_column(String(64), nullable=False)
     target_type: Mapped[str] = mapped_column(String(64), nullable=False)

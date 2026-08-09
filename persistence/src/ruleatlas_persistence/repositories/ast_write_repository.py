@@ -20,8 +20,8 @@ from ruleatlas_contracts.ast import (
     AstPoint,
     AstSourceRange,
 )
-from sqlalchemy import Table, delete, insert, or_, select, update
-from sqlalchemy.orm import Session
+from sqlalchemy import Table, and_, delete, insert, or_, select, update
+from sqlalchemy.orm import Session, aliased
 from sqlphilosophy.sync.repository import BaseRepository
 
 from ruleatlas_persistence.ast_payload_codec import (
@@ -176,7 +176,11 @@ class AstDocumentRepository(BaseRepository[AstDocument, "RepositoryFactory"]):
         )
         if document is None:
             return 0
-        self._session.execute(update(AstDocument).where(AstDocument.id == document.id).values(root_node_id=None))
+        self._session.execute(
+            update(AstDocument)
+            .where(AstDocument.id == document.id)
+            .values(root_node_id=None, root_node_key=None)
+        )
         self._session.execute(
             delete(AstNodeLink).where(AstNodeLink.ast_document_id == document.id)
         )
@@ -226,6 +230,8 @@ class AstPayloadRepository(BaseRepository[AstPayload, "RepositoryFactory"]):
 
 class AstPayloadBlobRepository(BaseRepository[AstPayloadBlob, "RepositoryFactory"]):
     """Write-once compressed payloads used during the RA-01 dual-write phase."""
+
+    MAX_DECODE_DOCUMENTS_PER_BATCH = 64
 
     def __init__(self, session: Session, factory: RepositoryFactory) -> None:
         super().__init__(AstPayloadBlob, session, factory)
@@ -327,29 +333,62 @@ class AstPayloadBlobRepository(BaseRepository[AstPayloadBlob, "RepositoryFactory
         and analysis version, preventing a cached payload from crossing scope.
         """
 
-        document = self._session.scalar(
-            select(AstDocument).where(
-                AstDocument.id == document_id,
+        return self.decode_for_documents(
+            project_id=project_id,
+            analysis_version_id=analysis_version_id,
+            document_ids=(document_id,),
+            cache=True,
+        ).get(document_id)
+
+    def decode_for_documents(
+        self,
+        *,
+        project_id: str,
+        analysis_version_id: str,
+        document_ids: tuple[str, ...] | list[str],
+        cache: bool = False,
+    ) -> dict[str, DecodedAstPayload]:
+        """Decode a bounded, scope-checked batch of packed documents in one query.
+
+        Callers that process a whole analysis must supply small batches and keep
+        ``cache=False`` so the session does not retain every decoded tree.  The
+        single-document API keeps its per-session cache for interactive reads.
+        Documents with no packed payload are omitted so callers can apply their
+        explicit legacy fallback without weakening project/version scoping.
+        """
+
+        ids = tuple(dict.fromkeys(document_ids))
+        if not ids:
+            return {}
+        if len(ids) > self.MAX_DECODE_DOCUMENTS_PER_BATCH:
+            raise ValueError(
+                "decode_for_documents exceeds the bounded batch size "
+                f"({self.MAX_DECODE_DOCUMENTS_PER_BATCH})"
+            )
+        rows = self._session.execute(
+            select(AstDocument, AstPayloadBlob)
+            .join(AstPayloadBlob, AstPayloadBlob.ast_payload_id == AstDocument.ast_payload_id)
+            .where(
+                AstDocument.id.in_(ids),
                 AstDocument.project_id == project_id,
                 AstDocument.analysis_version_id == analysis_version_id,
             )
-        )
-        if document is None:
-            return None
-        cache_key = (project_id, analysis_version_id, document.ast_payload_id)
-        decoded = self._decoded_by_scope.get(cache_key)
-        if decoded is None:
-            blob = self.get_for_payload(document.ast_payload_id)
-            if blob is None:
-                return None
-            decoded = self._decode_blob(blob)
-            self._decoded_by_scope[cache_key] = decoded
-        if (
-            decoded.document_key != document.document_key
-            or len(decoded.records) != document.node_count
-        ):
-            raise ValueError("AST payload blob does not match its scoped document metadata")
-        return decoded
+        ).all()
+        decoded_by_document: dict[str, DecodedAstPayload] = {}
+        for document, blob in rows:
+            cache_key = (project_id, analysis_version_id, document.ast_payload_id)
+            decoded = self._decoded_by_scope.get(cache_key) if cache else None
+            if decoded is None:
+                decoded = self._decode_blob(blob)
+                if cache:
+                    self._decoded_by_scope[cache_key] = decoded
+            if (
+                decoded.document_key != document.document_key
+                or len(decoded.records) != document.node_count
+            ):
+                raise ValueError("AST payload blob does not match its scoped document metadata")
+            decoded_by_document[document.id] = decoded
+        return decoded_by_document
 
     def verify_against_relational_nodes(self, payload: AstPayload) -> DecodedAstPayload:
         """Prove an existing packed payload preserves the current node projection."""
@@ -508,13 +547,52 @@ class AstNodeRepository(BaseRepository[AstNode, "RepositoryFactory"]):
         self._session.flush()
         packed_payload = self.factory.ast_payload_blobs().create_for_node_records(payload, records)
         payload.root_node_id = key_to_id[roots[0].node_key]
+        payload.root_node_key = roots[0].node_key
         payload.node_count = packed_payload.node_count
         payload.error_node_count = packed_payload.error_node_count
         document.root_node_id = payload.root_node_id
+        document.root_node_key = payload.root_node_key
         document.node_count = packed_payload.node_count
         document.error_node_count = payload.error_node_count
         self._session.flush()
         return key_to_id
+
+    def persist_packed_for_document(
+        self,
+        document: AstDocument,
+        records: list[AstNodeRecord],
+    ) -> None:
+        """Persist the canonical payload without adding a relational node projection.
+
+        This is the RA-01 contraction writer for new scans. Existing documents with
+        no blob still use ``bulk_create_for_document`` during the expand transition,
+        but application parsing must use this method once readers and link writers
+        can resolve stable document/key pointers.
+        """
+
+        if document.ast_payload_id is None:
+            raise ValueError("document must reference an AST payload")
+        payload = self._session.get(AstPayload, document.ast_payload_id)
+        if payload is None:
+            raise ValueError("document AST payload does not exist")
+        if any(record.document_key != document.document_key for record in records):
+            raise ValueError("every node must match the target document_key")
+        if records:
+            self._validate_parent_tree(records)
+
+        packed_payload = self.factory.ast_payload_blobs().create_for_node_records(
+            payload,
+            records,
+        )
+        payload.root_node_id = None
+        payload.root_node_key = packed_payload.root_node_key
+        payload.node_count = packed_payload.node_count
+        payload.error_node_count = packed_payload.error_node_count
+        document.root_node_id = None
+        document.root_node_key = packed_payload.root_node_key
+        document.node_count = packed_payload.node_count
+        document.error_node_count = packed_payload.error_node_count
+        self._session.flush()
 
     @staticmethod
     def _validate_parent_tree(records: list[AstNodeRecord]) -> None:
@@ -554,24 +632,34 @@ class AstNodeLinkRepository(BaseRepository[AstNodeLink, "RepositoryFactory"]):
             return 0
         if any(record.document_key != document.document_key for record in records):
             raise ValueError("every link must match the target document_key")
-        node_rows = self._session.execute(
-            select(AstNode.node_key, AstNode.id).where(
-                AstNode.ast_payload_id == document.ast_payload_id
-            )
-        ).all()
-        node_ids: dict[str, str] = {}
-        for node_key, node_id in node_rows:
-            node_ids[node_key] = node_id
-        missing = {record.source_node_key for record in records if record.source_node_key not in node_ids}
+
+        decoded = self.factory.ast_payload_blobs().decode_for_documents(
+            project_id=document.project_id,
+            analysis_version_id=document.analysis_version_id,
+            document_ids=(document.id,),
+            cache=False,
+        ).get(document.id)
+        source_node_ids: dict[str, str] = {}
+        if decoded is not None:
+            source_node_keys = {node.node_key for node in decoded.records}
+        else:
+            source_node_ids = self._legacy_node_ids(document)
+            source_node_keys = set(source_node_ids)
+        missing = {
+            record.source_node_key
+            for record in records
+            if record.source_node_key not in source_node_keys
+        }
         if missing:
             raise ValueError(f"source nodes are missing from document: {sorted(missing)}")
+
+        target_pointers = self._stable_target_pointers(document, records)
         ast_target_ids = {
             record.target_id
             for record in records
-            if record.link_type
-            in {AstLinkType.CALL_TARGET, AstLinkType.DEFINITION, AstLinkType.REFERENCE}
+            if self._is_ast_target(record) and record.target_document_key is None
         }
-        target_pointers = {
+        legacy_target_pointers = {
             node_id: (target_document_id, node_key)
             for node_id, target_document_id, node_key in self._session.execute(
                 select(AstNode.id, AstDocument.id, AstNode.node_key)
@@ -582,16 +670,37 @@ class AstNodeLinkRepository(BaseRepository[AstNodeLink, "RepositoryFactory"]):
 
         payloads = []
         for record in records:
-            typed_targets = self._typed_target(record)
-            target_pointer = target_pointers.get(record.target_id)
+            target_pointer = (
+                target_pointers.get((record.target_document_key, record.target_node_key))
+                if record.target_document_key is not None and record.target_node_key is not None
+                else None
+            )
+            legacy_target_pointer = legacy_target_pointers.get(record.target_id)
+            if (
+                self._is_ast_target(record)
+                and target_pointer is None
+                and legacy_target_pointer is None
+            ):
+                raise ValueError(f"target AST node is missing: {record.target_id}")
+            typed_targets = self._typed_target(
+                record,
+                target_ast_node_id=(
+                    record.target_id
+                    if target_pointer is None and legacy_target_pointer is not None
+                    else None
+                ),
+            )
             if target_pointer is not None:
                 typed_targets["target_ast_document_id"] = target_pointer[0]
                 typed_targets["target_ast_node_key"] = target_pointer[1]
+            elif legacy_target_pointer is not None:
+                typed_targets["target_ast_document_id"] = legacy_target_pointer[0]
+                typed_targets["target_ast_node_key"] = legacy_target_pointer[1]
             payloads.append(
                 {
                     "id": uuid_str(),
                     "ast_document_id": document.id,
-                    "ast_node_id": node_ids[record.source_node_key],
+                    "ast_node_id": source_node_ids.get(record.source_node_key),
                     "ast_node_key": record.source_node_key,
                     "link_type": record.link_type.value,
                     "target_type": record.link_type.value,
@@ -607,6 +716,79 @@ class AstNodeLinkRepository(BaseRepository[AstNodeLink, "RepositoryFactory"]):
         self._session.execute(insert(cast(Table, AstNodeLink.__table__)), payloads)
         self._session.flush()
         return len(payloads)
+
+    def _stable_target_pointers(
+        self,
+        document: AstDocument,
+        records: list[AstLinkRecord],
+    ) -> dict[tuple[str, str], tuple[str, str]]:
+        """Validate supplied packed target pointers without reading relational nodes."""
+
+        target_keys = {
+            (record.target_document_key, record.target_node_key)
+            for record in records
+            if self._is_ast_target(record)
+            and record.target_document_key is not None
+            and record.target_node_key is not None
+        }
+        if not target_keys:
+            return {}
+        documents = {
+            target.document_key: target
+            for target in self._session.scalars(
+                select(AstDocument).where(
+                    AstDocument.project_id == document.project_id,
+                    AstDocument.analysis_version_id == document.analysis_version_id,
+                    AstDocument.document_key.in_({key[0] for key in target_keys}),
+                )
+            )
+        }
+        missing_documents = sorted({key[0] for key in target_keys} - documents.keys())
+        if missing_documents:
+            raise ValueError(f"target documents are missing from analysis: {missing_documents}")
+
+        decoded_by_document: dict[str, DecodedAstPayload] = {}
+        targets = list(documents.values())
+        blobs = self.factory.ast_payload_blobs()
+        for offset in range(0, len(targets), blobs.MAX_DECODE_DOCUMENTS_PER_BATCH):
+            batch = targets[offset : offset + blobs.MAX_DECODE_DOCUMENTS_PER_BATCH]
+            decoded_by_document.update(
+                blobs.decode_for_documents(
+                    project_id=document.project_id,
+                    analysis_version_id=document.analysis_version_id,
+                    document_ids=[target.id for target in batch],
+                    cache=False,
+                )
+            )
+
+        legacy_keys_by_document = {
+            target.id: self._legacy_node_ids(target)
+            for target in targets
+            if target.id not in decoded_by_document
+        }
+        pointers: dict[tuple[str, str], tuple[str, str]] = {}
+        for document_key, node_key in target_keys:
+            target = documents[document_key]
+            decoded = decoded_by_document.get(target.id)
+            available_keys = (
+                {node.node_key for node in decoded.records}
+                if decoded is not None
+                else set(legacy_keys_by_document[target.id])
+            )
+            if node_key not in available_keys:
+                raise ValueError(
+                    f"target node is missing from document {document_key}: {node_key}"
+                )
+            pointers[(document_key, node_key)] = (target.id, node_key)
+        return pointers
+
+    def _legacy_node_ids(self, document: AstDocument) -> dict[str, str]:
+        rows = self._session.execute(
+            select(AstNode.node_key, AstNode.id).where(
+                AstNode.ast_payload_id == document.ast_payload_id
+            )
+        ).tuples().all()
+        return dict(cast(list[tuple[str, str]], rows))
 
     def backfill_stable_node_keys(self, *, limit: int) -> int:
         """Fill one bounded page of legacy link keys from their retained UUID FK."""
@@ -635,14 +817,24 @@ class AstNodeLinkRepository(BaseRepository[AstNodeLink, "RepositoryFactory"]):
 
         if limit < 1:
             raise ValueError("limit must be at least 1")
+        source_document = aliased(AstDocument)
+        target_document = aliased(AstDocument)
         pending = (
             select(
                 AstNodeLink.id,
-                AstDocument.id.label("target_document_id"),
+                target_document.id.label("target_document_id"),
                 AstNode.node_key.label("target_node_key"),
             )
+            .join(source_document, source_document.id == AstNodeLink.ast_document_id)
             .join(AstNode, AstNode.id == AstNodeLink.target_ast_node_id)
-            .join(AstDocument, AstDocument.ast_payload_id == AstNode.ast_payload_id)
+            .join(
+                target_document,
+                and_(
+                    target_document.ast_payload_id == AstNode.ast_payload_id,
+                    target_document.project_id == source_document.project_id,
+                    target_document.analysis_version_id == source_document.analysis_version_id,
+                ),
+            )
             .where(
                 AstNodeLink.target_ast_node_id.is_not(None),
                 or_(
@@ -668,7 +860,19 @@ class AstNodeLinkRepository(BaseRepository[AstNodeLink, "RepositoryFactory"]):
         return len(result.scalars().all())
 
     @staticmethod
-    def _typed_target(record: AstLinkRecord) -> dict[str, str | None]:
+    def _is_ast_target(record: AstLinkRecord) -> bool:
+        return record.link_type in {
+            AstLinkType.CALL_TARGET,
+            AstLinkType.DEFINITION,
+            AstLinkType.REFERENCE,
+        }
+
+    @staticmethod
+    def _typed_target(
+        record: AstLinkRecord,
+        *,
+        target_ast_node_id: str | None,
+    ) -> dict[str, str | None]:
         targets: dict[str, str | None] = {
             "graph_node_id": None,
             "source_symbol_id": None,
@@ -687,7 +891,9 @@ class AstNodeLinkRepository(BaseRepository[AstNodeLink, "RepositoryFactory"]):
         }
         field_name = field_by_type.get(record.link_type)
         if field_name is not None:
-            targets[field_name] = record.target_id
+            targets[field_name] = (
+                target_ast_node_id if field_name == "target_ast_node_id" else record.target_id
+            )
         return targets
 
 

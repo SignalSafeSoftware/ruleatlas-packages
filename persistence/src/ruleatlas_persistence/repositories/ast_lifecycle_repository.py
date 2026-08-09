@@ -209,7 +209,9 @@ class AstLifecycleRepository:
                 )
             )
             self._session.execute(
-                update(AstDocument).where(AstDocument.id.in_(deleted_document_ids)).values(root_node_id=None)
+                update(AstDocument)
+                .where(AstDocument.id.in_(deleted_document_ids))
+                .values(root_node_id=None, root_node_key=None)
             )
             self._session.execute(delete(AstDocument).where(AstDocument.id.in_(deleted_document_ids)))
             documents_deleted = len(deleted_document_ids)
@@ -248,7 +250,7 @@ class AstLifecycleRepository:
                 self._session.execute(
                     update(AstPayload)
                     .where(AstPayload.id.in_(unreferenced_payload_ids))
-                    .values(root_node_id=None)
+                    .values(root_node_id=None, root_node_key=None)
                 )
                 self._session.execute(
                     delete(AstNode).where(

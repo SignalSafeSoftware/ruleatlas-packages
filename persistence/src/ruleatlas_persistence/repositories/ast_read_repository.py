@@ -8,11 +8,11 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from ruleatlas_contracts.ast import AstNodeCategory, AstNodeRecord
-from sqlalchemy import Select, and_, or_, select
+from sqlalchemy import Select, and_, func, or_, select
 from sqlalchemy.orm import Session
 
 from ruleatlas_persistence.ast_payload_codec import DecodedAstPayload
-from ruleatlas_persistence.models import AstDocument, AstNode, AstNodeLink
+from ruleatlas_persistence.models import AstDocument, AstNode, AstNodeLink, AstPayloadBlob
 
 if TYPE_CHECKING:
     from ruleatlas_persistence.repositories.factory import RepositoryFactory
@@ -350,40 +350,54 @@ class AstQueryRepository:
                         )[:page_size]
                     ]
         else:
-            documents = list(self._session.scalars(self._document_scope(project_id, analysis_version_id)))
-            decoded_documents = [
-                (
-                    document,
-                    self._decoded_payload_for_document(
+            documents = list(
+                self._session.scalars(
+                    self._document_scope(project_id, analysis_version_id).order_by(
+                        AstDocument.source_path,
+                        AstDocument.id,
+                    )
+                )
+            )
+            backed_document_count = self._session.scalar(
+                select(func.count(AstDocument.id))
+                .select_from(AstDocument)
+                .join(AstPayloadBlob, AstPayloadBlob.ast_payload_id == AstDocument.ast_payload_id)
+                .where(
+                    AstDocument.project_id == project_id,
+                    AstDocument.analysis_version_id == analysis_version_id,
+                )
+            )
+            if backed_document_count == len(documents):
+                blobs = self._factory.ast_payload_blobs()
+                packed_nodes: list[AstNode] = []
+                for offset in range(0, len(documents), blobs.MAX_DECODE_DOCUMENTS_PER_BATCH):
+                    batch = documents[offset : offset + blobs.MAX_DECODE_DOCUMENTS_PER_BATCH]
+                    decoded_by_document = blobs.decode_for_documents(
                         project_id=project_id,
                         analysis_version_id=analysis_version_id,
-                        document=document,
-                    ),
-                )
-                for document in documents
-            ]
-            if all(payload is not None for _, payload in decoded_documents):
-                packed_nodes = [
-                    (document, record)
-                    for document, payload in decoded_documents
-                    if payload is not None
-                    for record in self._filter_packed_records(
-                        payload.records,
-                        raw_types=raw_types,
-                        categories=categories,
-                        start_byte=start_byte,
-                        end_byte=end_byte,
+                        document_ids=[document.id for document in batch],
+                        cache=False,
                     )
-                ]
-                packed_nodes.sort(
-                    key=lambda item: (
-                        item[0].source_path,
-                        item[1].source_range.start_byte,
-                        item[1].source_range.end_byte,
-                        item[1].node_key,
-                    )
-                )
-                return [self._packed_node(document, record) for document, record in packed_nodes[:page_size]]
+                    for document in batch:
+                        records = sorted(
+                            self._filter_packed_records(
+                                decoded_by_document[document.id].records,
+                                raw_types=raw_types,
+                                categories=categories,
+                                start_byte=start_byte,
+                                end_byte=end_byte,
+                            ),
+                            key=lambda record: (
+                                record.source_range.start_byte,
+                                record.source_range.end_byte,
+                                record.node_key,
+                            ),
+                        )
+                        for record in records:
+                            packed_nodes.append(self._packed_node(document, record))
+                            if len(packed_nodes) == page_size:
+                                return packed_nodes
+                return packed_nodes
 
         statement = self._node_scope(project_id, analysis_version_id)
         if document_id is not None:

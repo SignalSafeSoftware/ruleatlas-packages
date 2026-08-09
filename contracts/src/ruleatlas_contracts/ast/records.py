@@ -248,6 +248,8 @@ class AstLinkRecord:
     resolver_version: str
     confidence: float
     attributes: dict[str, Any] = field(default_factory=dict)
+    target_document_key: str | None = None
+    target_node_key: str | None = None
 
     def __post_init__(self) -> None:
         required = {
@@ -259,6 +261,13 @@ class AstLinkRecord:
         }
         for field_name, value in required.items():
             _require_non_blank(value, field_name)
+        if (self.target_document_key is None) != (self.target_node_key is None):
+            raise ValueError(
+                "target_document_key and target_node_key must be provided together"
+            )
+        if self.target_document_key is not None:
+            _require_non_blank(self.target_document_key, "target_document_key")
+            _require_non_blank(self.target_node_key or "", "target_node_key")
         if not 0.0 <= self.confidence <= 1.0:
             raise ValueError("confidence must be between 0.0 and 1.0")
 
