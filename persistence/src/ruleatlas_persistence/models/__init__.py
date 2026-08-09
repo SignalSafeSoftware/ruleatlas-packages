@@ -13,7 +13,7 @@ from .ai import (
     IntegrationCredential,
     ProjectAiConfiguration,
 )
-from .ast import AstDocument, AstNode, AstNodeLink, AstParseRun, AstPayload
+from .ast import AstDocument, AstNode, AstNodeLink, AstParseRun, AstPayload, AstPayloadBlob
 from .core import (
     ApiToken,
     ExternalIdentity,
@@ -118,6 +118,7 @@ __all__ = [
     "AstNodeLink",
     "AstParseRun",
     "AstPayload",
+    "AstPayloadBlob",
     "AuditEvent",
     "BddFeature",
     "BddScenario",

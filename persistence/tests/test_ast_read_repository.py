@@ -13,7 +13,11 @@ import ruleatlas_persistence.models as _models  # noqa: F401
 from ruleatlas_persistence.base import Base
 from ruleatlas_persistence.models import AstDocument, AstNode, AstNodeLink, AstPayload
 from ruleatlas_persistence.repositories import RepositoryFactory
-from ruleatlas_persistence.repositories.ast_read_repository import AstNodeCursor
+from ruleatlas_persistence.repositories.ast_read_repository import (
+    PACKED_NODE_REFERENCE_PREFIX,
+    AstNodeCursor,
+    AstQueryRepository,
+)
 
 
 @pytest.fixture
@@ -140,6 +144,19 @@ def _seed_tree(session: Session) -> None:
         ]
     )
     session.flush()
+
+
+def _pack_seeded_tree(session: Session) -> None:
+    document = session.get(AstDocument, "doc-1")
+    payload = session.get(AstPayload, "payload-doc-1")
+    assert document is not None
+    assert payload is not None
+    document.root_node_id = "root"
+    document.node_count = 5
+    payload.root_node_id = "root"
+    payload.node_count = 5
+    session.flush()
+    RepositoryFactory(session).ast_payload_blobs().backfill_payload(payload.id)
 
 
 def test_document_and_node_lookups_require_exact_scope(session: Session) -> None:
@@ -281,6 +298,97 @@ def test_structural_range_containing_and_definition_queries(session: Session) ->
         document_id="doc-1",
     )
     assert [node.id for node in definitions] == ["class", "function"]
+
+
+def test_packed_payload_reads_use_stable_references_and_preserve_scope(session: Session) -> None:
+    _seed_tree(session)
+    session.add(
+        AstNodeLink(
+            id="packed-link",
+            ast_document_id="doc-1",
+            ast_node_id="call",
+            ast_node_key="call",
+            link_type=AstLinkType.REFERENCE.value,
+            target_type=AstLinkType.REFERENCE.value,
+            target_id="class",
+            target_ast_node_id="class",
+            resolution_type="resolved",
+            resolver_key="test",
+            resolver_version="1",
+            confidence=1.0,
+        )
+    )
+    _pack_seeded_tree(session)
+    queries = RepositoryFactory(session).ast_queries()
+    root_reference = AstQueryRepository.packed_node_reference("src/doc-1.py", "root")
+
+    containing = queries.find_containing_node(
+        project_id="project-1",
+        analysis_version_id="analysis-1",
+        document_id="doc-1",
+        byte_offset=16,
+    )
+    assert containing is not None
+    assert containing.id.startswith(PACKED_NODE_REFERENCE_PREFIX)
+    assert containing.node_key == "call"
+    assert queries.get_node(
+        project_id="project-1",
+        analysis_version_id="analysis-1",
+        node_id=containing.id,
+    ) is not None
+    parent = queries.get_parent(
+        project_id="project-1",
+        analysis_version_id="analysis-1",
+        node_id=containing.id,
+    )
+    assert parent is not None
+    assert parent.node_key == "condition"
+    children = queries.list_children(
+        project_id="project-1",
+        analysis_version_id="analysis-1",
+        parent_node_id=root_reference,
+    )
+    assert [node.node_key for node in children.items] == ["class", "function"]
+    subtree = queries.bounded_subtree(
+        project_id="project-1",
+        analysis_version_id="analysis-1",
+        root_node_id=root_reference,
+        max_depth=2,
+        max_nodes=10,
+    )
+    assert [(item.node.node_key, item.depth) for item in subtree.items] == [
+        ("root", 0),
+        ("class", 1),
+        ("function", 1),
+        ("condition", 2),
+    ]
+    assert [
+        node.node_key
+        for node in queries.search_nodes(
+            project_id="project-1",
+            analysis_version_id="analysis-1",
+            raw_types={"if_statement", "call"},
+            start_byte=12,
+            end_byte=18,
+        )
+    ] == ["condition", "call"]
+    assert [
+        link.id
+        for link in queries.list_links_for_node(
+            project_id="project-1",
+            analysis_version_id="analysis-1",
+            node_id=containing.id,
+            link_types={AstLinkType.REFERENCE.value},
+        )
+    ] == ["packed-link"]
+    assert (
+        queries.get_node(
+            project_id="other-project",
+            analysis_version_id="analysis-1",
+            node_id=containing.id,
+        )
+        is None
+    )
 
 
 def test_parent_and_links_cannot_cross_scope(session: Session) -> None:

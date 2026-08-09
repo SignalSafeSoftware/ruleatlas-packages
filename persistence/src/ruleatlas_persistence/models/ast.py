@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from ruleatlas_contracts.ast import AstParseStatus
-from sqlalchemy import CheckConstraint
+from sqlalchemy import CheckConstraint, LargeBinary
 
 from ._base import (
     FK_PROJECTS_ID,
@@ -114,6 +114,42 @@ class AstPayload(Base, TimestampMixin):
     attributes_json: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
 
 
+class AstPayloadBlob(Base, TimestampMixin):
+    """Immutable, versioned compressed representation of an AST payload.
+
+    This is deliberately additive while the normalized ``ast_nodes`` projection
+    remains the production read path.  The checksum is over the uncompressed,
+    canonical bytes so it can prove equivalence independently of the selected
+    compression implementation.
+    """
+
+    __tablename__ = "ast_payload_blobs"
+    __table_args__ = (
+        UniqueConstraint("ast_payload_id", name="uq_ast_payload_blobs_payload"),
+        CheckConstraint(
+            "uncompressed_bytes >= 0 AND compressed_bytes >= 0 AND node_count >= 0 "
+            "AND error_node_count >= 0",
+            name="ck_ast_payload_blobs_size_counts_nonnegative",
+        ),
+        CheckConstraint(
+            "error_node_count <= node_count",
+            name="ck_ast_payload_blobs_error_nodes_bounded",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
+    ast_payload_id: Mapped[str] = mapped_column(ForeignKey("ast_payloads.id"), nullable=False)
+    encoding_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    compression_codec: Mapped[str] = mapped_column(String(32), nullable=False)
+    payload_bytes: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    uncompressed_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    uncompressed_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+    compressed_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+    node_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    error_node_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    root_node_key: Mapped[str | None] = mapped_column(String(512))
+
+
 class AstDocument(Base, TimestampMixin):
     __tablename__ = "ast_documents"
     __table_args__ = (
@@ -197,7 +233,14 @@ class AstNode(Base, TimestampMixin):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
     ast_payload_id: Mapped[str] = mapped_column(ForeignKey("ast_payloads.id"), nullable=False)
-    parent_node_id: Mapped[str | None] = mapped_column(ForeignKey("ast_nodes.id"))
+    parent_node_id: Mapped[str | None] = mapped_column(
+        ForeignKey(
+            "ast_nodes.id",
+            deferrable=True,
+            initially="DEFERRED",
+            name="fk_ast_nodes_parent",
+        )
+    )
     node_key: Mapped[str] = mapped_column(String(512), nullable=False)
     sibling_ordinal: Mapped[int] = mapped_column(Integer, nullable=False)
     raw_type: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -225,10 +268,16 @@ class AstNodeLink(Base, TimestampMixin):
     __table_args__ = (
         Index("ix_ast_node_links_source", "ast_node_id"),
         Index("ix_ast_node_links_document", "ast_document_id"),
+        Index("ix_ast_node_links_document_key", "ast_document_id", "ast_node_key"),
         Index("ix_ast_node_links_graph_node", "graph_node_id"),
         Index("ix_ast_node_links_source_symbol", "source_symbol_id"),
         Index("ix_ast_node_links_evidence", "rule_evidence_id"),
         Index("ix_ast_node_links_target_ast", "target_ast_node_id"),
+        Index(
+            "ix_ast_node_links_target_document_key",
+            "target_ast_document_id",
+            "target_ast_node_key",
+        ),
         Index("ix_ast_node_links_target", "target_type", "target_id"),
         CheckConstraint(
             "(CASE WHEN graph_node_id IS NOT NULL THEN 1 ELSE 0 END) + "
@@ -246,6 +295,7 @@ class AstNodeLink(Base, TimestampMixin):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
     ast_document_id: Mapped[str] = mapped_column(ForeignKey("ast_documents.id"), nullable=False)
     ast_node_id: Mapped[str] = mapped_column(ForeignKey("ast_nodes.id"), nullable=False)
+    ast_node_key: Mapped[str | None] = mapped_column(String(512))
     link_type: Mapped[str] = mapped_column(String(64), nullable=False)
     target_type: Mapped[str] = mapped_column(String(64), nullable=False)
     target_id: Mapped[str] = mapped_column(String(512), nullable=False)
@@ -253,6 +303,8 @@ class AstNodeLink(Base, TimestampMixin):
     source_symbol_id: Mapped[str | None] = mapped_column(ForeignKey("source_symbols.id"))
     rule_evidence_id: Mapped[str | None] = mapped_column(ForeignKey("rule_evidence.id"))
     target_ast_node_id: Mapped[str | None] = mapped_column(ForeignKey("ast_nodes.id"))
+    target_ast_document_id: Mapped[str | None] = mapped_column(ForeignKey("ast_documents.id"))
+    target_ast_node_key: Mapped[str | None] = mapped_column(String(512))
     resolution_type: Mapped[str] = mapped_column(String(32), nullable=False)
     resolver_key: Mapped[str] = mapped_column(String(64), nullable=False)
     resolver_version: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -266,4 +318,5 @@ __all__ = [
     "AstNodeLink",
     "AstParseRun",
     "AstPayload",
+    "AstPayloadBlob",
 ]

@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 
 from ruleatlas_contracts.enums import GraphObservationKind, GraphProviderStatus, GraphResolutionType
-from ruleatlas_contracts.graph_contract import StructuralAnalysisResult
+from ruleatlas_contracts.graph_contract import NormalizedGraphEdge, StructuralAnalysisResult
 from ruleatlas_persistence.models import (
     GraphEdge,
     GraphNode,
@@ -13,6 +13,7 @@ from ruleatlas_persistence.models import (
     GraphProviderRun,
 )
 from ruleatlas_persistence.repositories import RepositoryFactory
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 
@@ -69,13 +70,21 @@ def upsert_provider_result(
         # Idempotent re-import of identical payload.
         return run
 
-    key_to_node: dict[str, GraphNode] = {}
+    node_keys = list(dict.fromkeys(item.canonical_key for item in result.nodes))
+    nodes_by_key = {
+        node.canonical_key: node
+        for node in session.scalars(
+            select(GraphNode).where(
+                GraphNode.analysis_version_id == analysis_version_id,
+                GraphNode.canonical_key.in_(node_keys),
+            )
+        ).all()
+    } if node_keys else {}
+    new_nodes: list[GraphNode] = []
     for item in result.nodes:
-        existing = repositories.graph_nodes().get_by_canonical_key(
-            analysis_version_id, item.canonical_key
-        )
-        if existing is None:
-            existing = GraphNode(
+        node = nodes_by_key.get(item.canonical_key)
+        if node is None:
+            node = GraphNode(
                 project_id=project_id,
                 analysis_version_id=analysis_version_id,
                 canonical_key=item.canonical_key,
@@ -89,25 +98,71 @@ def upsert_provider_result(
                 symbol_kind=item.symbol_kind,
                 attributes_json=dict(item.attributes),
             )
-            session.add(existing)
-            session.flush()
-        key_to_node[item.canonical_key] = existing
-        _upsert_observation(
-            session,
-            project_id=project_id,
-            analysis_version_id=analysis_version_id,
-            provider_run_id=run.id,
+            nodes_by_key[item.canonical_key] = node
+            new_nodes.append(node)
+    if new_nodes:
+        session.add_all(new_nodes)
+        session.flush()
+
+    extracted = inferred = ambiguous = 0
+    edge_keys = list(dict.fromkeys(edge.canonical_key for edge in result.edges))
+    edges_by_key = {
+        edge.canonical_key: edge
+        for edge in session.scalars(
+            select(GraphEdge).where(
+                GraphEdge.analysis_version_id == analysis_version_id,
+                GraphEdge.canonical_key.in_(edge_keys),
+            )
+        ).all()
+    } if edge_keys else {}
+    new_edges: list[GraphEdge] = []
+    observation_rows: list[GraphObservation] = []
+    observation_keys: set[tuple[str, str]] = set()
+
+    def add_observation(
+        *,
+        kind: str,
+        provider_object_id: str,
+        confidence: float,
+        payload: dict,
+        node_id: str | None = None,
+        edge_id: str | None = None,
+        resolution_type: str = GraphResolutionType.EXTRACTED.value,
+    ) -> None:
+        """Queue the first observation for a provider object in this new run."""
+        observation_key = (kind, provider_object_id)
+        if observation_key in observation_keys:
+            return
+        observation_keys.add(observation_key)
+        observation_rows.append(
+            GraphObservation(
+                project_id=project_id,
+                analysis_version_id=analysis_version_id,
+                provider_run_id=run.id,
+                observation_kind=kind,
+                provider_object_id=provider_object_id,
+                node_id=node_id,
+                edge_id=edge_id,
+                confidence=confidence,
+                resolution_type=resolution_type,
+                raw_payload_json=payload,
+            )
+        )
+
+    for item in result.nodes:
+        node = nodes_by_key[item.canonical_key]
+        add_observation(
             kind=GraphObservationKind.NODE.value,
             provider_object_id=item.provider_object_id,
-            node_id=existing.id,
+            node_id=node.id,
             confidence=item.confidence,
             payload={"canonical_key": item.canonical_key, **item.attributes},
         )
 
-    extracted = inferred = ambiguous = 0
+    resolved_edges: list[tuple[NormalizedGraphEdge, GraphEdge]] = []
     for edge in result.edges:
-        from_node = key_to_node.get(edge.from_canonical_key)
-        to_node = key_to_node.get(edge.to_canonical_key)
+        from_node = nodes_by_key.get(edge.from_canonical_key)
+        to_node = nodes_by_key.get(edge.to_canonical_key)
         if from_node is None or to_node is None:
             ambiguous += 1
             continue
@@ -117,11 +172,9 @@ def upsert_provider_result(
             ambiguous += 1
         else:
             extracted += 1
-        existing_edge = repositories.graph_edges().get_by_analysis_and_canonical_key(
-            analysis_version_id, edge.canonical_key
-        )
-        if existing_edge is None:
-            existing_edge = GraphEdge(
+        graph_edge = edges_by_key.get(edge.canonical_key)
+        if graph_edge is None:
+            graph_edge = GraphEdge(
                 project_id=project_id,
                 analysis_version_id=analysis_version_id,
                 canonical_key=edge.canonical_key,
@@ -132,20 +185,23 @@ def upsert_provider_result(
                 resolution_type=edge.resolution_type,
                 attributes_json=dict(edge.attributes),
             )
-            session.add(existing_edge)
-            session.flush()
-        _upsert_observation(
-            session,
-            project_id=project_id,
-            analysis_version_id=analysis_version_id,
-            provider_run_id=run.id,
+            edges_by_key[edge.canonical_key] = graph_edge
+            new_edges.append(graph_edge)
+        resolved_edges.append((edge, graph_edge))
+    if new_edges:
+        session.add_all(new_edges)
+        session.flush()
+    for edge, graph_edge in resolved_edges:
+        add_observation(
             kind=GraphObservationKind.EDGE.value,
             provider_object_id=edge.provider_object_id,
-            edge_id=existing_edge.id,
+            edge_id=graph_edge.id,
             confidence=edge.confidence,
             resolution_type=edge.resolution_type,
             payload={"canonical_key": edge.canonical_key, **edge.attributes},
         )
+    if observation_rows:
+        session.add_all(observation_rows)
 
     run.nodes_count = len(result.nodes)
     run.edges_count = len(result.edges)
@@ -162,42 +218,6 @@ def upsert_provider_result(
     session.commit()
     session.refresh(run)
     return run
-
-
-def _upsert_observation(
-    session: Session,
-    *,
-    project_id: str,
-    analysis_version_id: str,
-    provider_run_id: str,
-    kind: str,
-    provider_object_id: str,
-    confidence: float,
-    payload: dict,
-    node_id: str | None = None,
-    edge_id: str | None = None,
-    resolution_type: str = GraphResolutionType.EXTRACTED.value,
-) -> GraphObservation:
-    existing = RepositoryFactory(session).graph_observations().get_for_provider_object(
-        provider_run_id, provider_object_id, kind
-    )
-    if existing is not None:
-        return existing
-    row = GraphObservation(
-        project_id=project_id,
-        analysis_version_id=analysis_version_id,
-        provider_run_id=provider_run_id,
-        observation_kind=kind,
-        provider_object_id=provider_object_id,
-        node_id=node_id,
-        edge_id=edge_id,
-        confidence=confidence,
-        resolution_type=resolution_type,
-        raw_payload_json=payload,
-    )
-    session.add(row)
-    session.flush()
-    return row
 
 
 def get_node(

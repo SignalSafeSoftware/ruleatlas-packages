@@ -25,7 +25,7 @@ from sqlalchemy.orm import Session
 
 import ruleatlas_persistence.models as _models  # noqa: F401
 from ruleatlas_persistence.base import Base
-from ruleatlas_persistence.models import AstDocument, AstNode, AstNodeLink, AstParseRun
+from ruleatlas_persistence.models import AstDocument, AstNode, AstNodeLink, AstParseRun, AstPayload, AstPayloadBlob
 from ruleatlas_persistence.repositories import RepositoryFactory
 
 
@@ -139,7 +139,7 @@ def test_parse_run_lifecycle_does_not_commit(session: Session) -> None:
     assert session.get(AstParseRun, "parse-1") is None
 
 
-def test_bulk_nodes_insert_parent_layers_and_assign_root(
+def test_bulk_nodes_insert_once_and_assign_root(
     session: Session,
     parser: ParserIdentity,
 ) -> None:
@@ -162,10 +162,94 @@ def test_bulk_nodes_insert_parent_layers_and_assign_root(
     finally:
         event.remove(session.get_bind(), "before_cursor_execute", count_node_insert)
 
-    assert node_insert_calls == 2
+    assert node_insert_calls == 1
     assert document.root_node_id == ids["root"]
     assert document.node_count == 2
     assert session.scalar(select(func.count()).select_from(AstNode)) == 2
+    blob = session.scalar(
+        select(AstPayloadBlob).where(AstPayloadBlob.ast_payload_id == document.ast_payload_id)
+    )
+    assert blob is not None
+    assert blob.node_count == document.node_count
+    assert blob.root_node_key == "root"
+
+
+def test_payload_blob_decode_is_scope_bound_and_matches_relational_nodes(
+    session: Session,
+    parser: ParserIdentity,
+) -> None:
+    repos = RepositoryFactory(session)
+    repos.ast_parse_runs().create_from_record(_parse_run_record())
+    document = _create_document(repos, _document_record(parser))
+    repos.ast_nodes().bulk_create_for_document(document, _node_records(document.document_key))
+    payload = session.get(AstPayload, document.ast_payload_id)
+    assert payload is not None
+
+    decoded = repos.ast_payload_blobs().decode_for_document(
+        project_id="project-1",
+        analysis_version_id="analysis-1",
+        document_id=document.id,
+    )
+
+    assert decoded is not None
+    assert decoded.root_node_key == "root"
+    assert decoded.node_count == 2
+    assert repos.ast_payload_blobs().verify_against_relational_nodes(payload) == decoded
+    assert (
+        repos.ast_payload_blobs().decode_for_document(
+            project_id="other-project",
+            analysis_version_id="analysis-1",
+            document_id=document.id,
+        )
+        is None
+    )
+
+
+def test_payload_blob_backfill_is_bounded_resumable_and_verifies_each_payload(
+    session: Session,
+    parser: ParserIdentity,
+) -> None:
+    repos = RepositoryFactory(session)
+    repos.ast_parse_runs().create_from_record(_parse_run_record())
+    document = _create_document(repos, _document_record(parser))
+    repos.ast_nodes().bulk_create_for_document(document, _node_records(document.document_key))
+    payload = session.get(AstPayload, document.ast_payload_id)
+    assert payload is not None
+    original_blob = repos.ast_payload_blobs().get_for_payload(payload.id)
+    assert original_blob is not None
+    session.delete(original_blob)
+    session.flush()
+
+    assert [row.id for row in repos.ast_payload_blobs().list_payloads_without_blob(limit=1)] == [payload.id]
+    restored_blob = repos.ast_payload_blobs().backfill_payload(payload.id)
+
+    assert restored_blob.ast_payload_id == payload.id
+    assert repos.ast_payload_blobs().verify_against_relational_nodes(payload).node_count == 2
+    assert repos.ast_payload_blobs().list_payloads_without_blob(limit=1) == []
+
+
+def test_payload_blob_rejects_conflicting_immutable_rewrite(
+    session: Session,
+    parser: ParserIdentity,
+) -> None:
+    repos = RepositoryFactory(session)
+    repos.ast_parse_runs().create_from_record(_parse_run_record())
+    document = _create_document(repos, _document_record(parser))
+    nodes = _node_records(document.document_key)
+    repos.ast_nodes().bulk_create_for_document(document, nodes)
+    payload = session.get(AstPayload, document.ast_payload_id)
+    assert payload is not None
+    conflicting_root = AstNodeRecord(
+        document_key=document.document_key,
+        node_key="root",
+        raw_type="changed_module",
+        source_range=nodes[0].source_range,
+        flags=nodes[0].flags,
+        sibling_ordinal=0,
+        subtree_hash=nodes[0].subtree_hash,
+    )
+    with pytest.raises(ValueError, match="different node content"):
+        repos.ast_payload_blobs().create_for_node_records(payload, [conflicting_root, nodes[1]])
 
 
 def test_bulk_nodes_reject_missing_parent(
@@ -227,9 +311,24 @@ def test_links_are_bulk_inserted_with_generic_and_typed_targets(
     assert repos.ast_node_links().bulk_create_for_document(document, links) == 2
     rows = list(session.scalars(select(AstNodeLink).order_by(AstNodeLink.link_type)))
     by_type = {row.link_type: row for row in rows}
+    assert by_type[AstLinkType.CALL_TARGET.value].ast_node_key == "condition"
     assert by_type[AstLinkType.CALL_TARGET.value].target_ast_node_id == node_ids["root"]
+    assert by_type[AstLinkType.CALL_TARGET.value].target_ast_document_id == document.id
+    assert by_type[AstLinkType.CALL_TARGET.value].target_ast_node_key == "root"
     assert by_type[AstLinkType.RELATED_BDD_SCENARIO.value].target_id == "scenario-1"
     assert by_type[AstLinkType.RELATED_BDD_SCENARIO.value].target_ast_node_id is None
+    by_type[AstLinkType.CALL_TARGET.value].ast_node_key = None
+    session.flush()
+    assert repos.ast_node_links().backfill_stable_node_keys(limit=1) == 1
+    session.expire(by_type[AstLinkType.CALL_TARGET.value])
+    assert by_type[AstLinkType.CALL_TARGET.value].ast_node_key == "condition"
+    by_type[AstLinkType.CALL_TARGET.value].target_ast_document_id = None
+    by_type[AstLinkType.CALL_TARGET.value].target_ast_node_key = None
+    session.flush()
+    assert repos.ast_node_links().backfill_stable_target_node_pointers(limit=1) == 1
+    session.expire(by_type[AstLinkType.CALL_TARGET.value])
+    assert by_type[AstLinkType.CALL_TARGET.value].target_ast_document_id == document.id
+    assert by_type[AstLinkType.CALL_TARGET.value].target_ast_node_key == "root"
 
 
 def test_replace_document_deletes_old_tree_and_links(

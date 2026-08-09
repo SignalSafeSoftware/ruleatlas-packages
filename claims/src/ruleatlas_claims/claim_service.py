@@ -16,6 +16,7 @@ from ruleatlas_persistence.models import (
     SourceClaimEvidence,
 )
 from ruleatlas_persistence.repositories import RepositoryFactory
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 
@@ -85,6 +86,104 @@ def persist_claim(
     session.commit()
     session.refresh(row)
     return row
+
+
+def persist_claims(
+    session: Session,
+    *,
+    project_id: str,
+    analysis_version_id: str,
+    scan_run_id: str | None,
+    drafts: list[ClaimDraft],
+) -> list[SourceClaim]:
+    """Persist a worker batch without per-claim lookups or commits.
+
+    The caller owns the transaction boundary.  Duplicate canonical keys retain
+    ``persist_claim`` semantics: the first draft wins and later duplicates
+    return that same row without adding duplicate evidence.
+    """
+    if not drafts:
+        return []
+
+    keys = [
+        claim_canonical_key(draft.provider_key, draft.source_path or "", draft.claim_text, draft.start_line)
+        for draft in drafts
+    ]
+    existing_by_key = {
+        row.canonical_key: row
+        for row in session.scalars(
+            select(SourceClaim).where(
+                SourceClaim.analysis_version_id == analysis_version_id,
+                SourceClaim.canonical_key.in_(list(dict.fromkeys(keys))),
+            )
+        )
+    }
+    rows_by_key = dict(existing_by_key)
+    created_by_key: dict[str, SourceClaim] = {}
+    output: list[SourceClaim] = []
+    for draft, key in zip(drafts, keys, strict=True):
+        row = rows_by_key.get(key)
+        if row is None:
+            row = SourceClaim(
+                project_id=project_id,
+                analysis_version_id=analysis_version_id,
+                scan_run_id=scan_run_id,
+                canonical_key=key,
+                claim_text=draft.claim_text,
+                actor=draft.actor,
+                condition_text=draft.condition_text,
+                action_text=draft.action_text,
+                result_text=draft.result_text,
+                exception_text=draft.exception_text,
+                subject_text=draft.subject_text,
+                state_transition=draft.state_transition,
+                claim_role=draft.claim_role,
+                status=SourceClaimStatus.CANDIDATE.value,
+                confidence=draft.confidence,
+                provider_key=draft.provider_key,
+                provider_version=draft.provider_version,
+                schema_version="1",
+                source_path=draft.source_path,
+                start_line=draft.start_line,
+                end_line=draft.end_line,
+                graph_node_id=draft.graph_node_id,
+                attributes_json=dict(draft.attributes),
+                is_canonical=False,
+            )
+            rows_by_key[key] = row
+            created_by_key[key] = row
+        output.append(row)
+
+    if not created_by_key:
+        return output
+    session.add_all(created_by_key.values())
+    session.flush()
+    evidence_rows: list[SourceClaimEvidence] = []
+    for draft, key in zip(drafts, keys, strict=True):
+        row = created_by_key.get(key)
+        if row is None:
+            continue
+        # Later duplicate drafts are represented by the same new row; only the
+        # first draft contributes evidence, as in repeated persist_claim calls.
+        created_by_key.pop(key)
+        for item in draft.evidence:
+            evidence_rows.append(
+                SourceClaimEvidence(
+                    source_claim_id=row.id,
+                    evidence_kind=str(item.get("evidence_kind") or "source_span"),
+                    reference_path=str(item.get("reference_path") or draft.source_path or ""),
+                    start_line=item.get("start_line"),
+                    end_line=item.get("end_line"),
+                    excerpt=item.get("excerpt"),
+                    graph_node_id=item.get("graph_node_id"),
+                    graph_edge_id=item.get("graph_edge_id"),
+                    attributes_json=dict(item.get("attributes") or {}),
+                )
+            )
+    if evidence_rows:
+        session.add_all(evidence_rows)
+    session.flush()
+    return output
 
 
 def extract_structural_claims_from_graph(
