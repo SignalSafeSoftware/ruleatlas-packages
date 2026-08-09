@@ -20,8 +20,28 @@ ALGORITHM_KEY = "deterministic_v1"
 ALGORITHM_VERSION = "1"
 MAX_CLUSTER_SIZE = 12
 GENERIC_STOPWORDS = {
-    "the", "a", "an", "and", "or", "to", "of", "in", "for", "on", "is", "be", "if",
-    "user", "system", "when", "then", "must", "should", "can", "with", "from",
+    "the",
+    "a",
+    "an",
+    "and",
+    "or",
+    "to",
+    "of",
+    "in",
+    "for",
+    "on",
+    "is",
+    "be",
+    "if",
+    "user",
+    "system",
+    "when",
+    "then",
+    "must",
+    "should",
+    "can",
+    "with",
+    "from",
 }
 
 
@@ -47,11 +67,7 @@ def _pair_key(left_id: str, right_id: str) -> tuple[str, str]:
 
 
 def _tokens(text: str) -> set[str]:
-    return {
-        t
-        for t in re.findall(r"[a-z0-9_]{3,}", (text or "").lower())
-        if t not in GENERIC_STOPWORDS
-    }
+    return {t for t in re.findall(r"[a-z0-9_]{3,}", (text or "").lower()) if t not in GENERIC_STOPWORDS}
 
 
 def lexical_similarity(a: str, b: str) -> float:
@@ -89,20 +105,14 @@ def cosine(a: list[float], b: list[float]) -> float:
 
 
 def _signals(a: SourceClaim, b: SourceClaim, *, lexical: float, embedding: float | None) -> dict:
-    if (
-        a.subject_text
-        and b.subject_text
-        and a.subject_text.strip().lower() != b.subject_text.strip().lower()
-    ):
+    if a.subject_text and b.subject_text and a.subject_text.strip().lower() != b.subject_text.strip().lower():
         return {
             "score": 0.0,
             "reasons": ["subject_mismatch"],
             "lexical": lexical,
             "embedding": embedding,
         }
-    shared_subject = bool(
-        a.subject_text and b.subject_text and a.subject_text.lower() == b.subject_text.lower()
-    )
+    shared_subject = bool(a.subject_text and b.subject_text and a.subject_text.lower() == b.subject_text.lower())
     shared_path = bool(a.source_path and b.source_path and a.source_path == b.source_path)
     shared_node = bool(a.graph_node_id and b.graph_node_id and a.graph_node_id == b.graph_node_id)
     role_diversity = a.claim_role != b.claim_role
@@ -127,11 +137,7 @@ def _signals(a: SourceClaim, b: SourceClaim, *, lexical: float, embedding: float
     if shared_constants:
         score += 0.1
         reasons.append("shared_constants")
-    action_overlap = bool(
-        a.action_text
-        and b.action_text
-        and _tokens(a.action_text) & _tokens(b.action_text)
-    )
+    action_overlap = bool(a.action_text and b.action_text and _tokens(a.action_text) & _tokens(b.action_text))
     if action_overlap:
         score += 0.15
         reasons.append("shared_action_tokens")
@@ -159,17 +165,23 @@ def form_clusters(
 ) -> dict:
     cfg = config or ClusterConfig()
     claims = (
-        RepositoryFactory(session)
-        .source_claims_structured()
-        .list_for_analysis_ordered(project_id, analysis_version_id)
+        RepositoryFactory(session).source_claims_structured().list_for_analysis_ordered(project_id, analysis_version_id)
     )
-    # Preserve locked clusters; drop unlocked prior clusters for reproducibility.
+    # Preserve human-locked clusters and clusters cited by completed AI work.
+    # The latter are historical evidence: deleting them would either orphan an
+    # investigation trace or silently sever the provenance it records.
     repositories = RepositoryFactory(session)
-    locked = repositories.claim_clusters().list_by_lock_state(
-        project_id, analysis_version_id, is_locked=True
-    )
-    locked_claim_ids = _collect_locked_claim_ids(repositories, locked)
-    _reset_unlocked_clusters(session, repositories, project_id, analysis_version_id)
+    locked = repositories.claim_clusters().list_by_lock_state(project_id, analysis_version_id, is_locked=True)
+    unlocked = repositories.claim_clusters().list_by_lock_state(project_id, analysis_version_id, is_locked=False)
+    trace_referenced_ids = {
+        trace.claim_cluster_id
+        for trace in repositories.ai_investigation_traces().list_for_project(project_id)
+        if trace.analysis_version_id == analysis_version_id and trace.claim_cluster_id
+    }
+    trace_referenced = [cluster for cluster in unlocked if cluster.id in trace_referenced_ids]
+    preserved = [*locked, *trace_referenced]
+    preserved_claim_ids = _collect_cluster_claim_ids(repositories, preserved)
+    _reset_unlocked_clusters(session, repositories, unlocked, preserved_cluster_ids={c.id for c in preserved})
 
     embedder = EmbeddingProvider(cfg.embedding_model_key, cfg.embedding_model_version)
     vectors = _compute_claim_embeddings(
@@ -182,7 +194,7 @@ def form_clusters(
         analysis_version_id=analysis_version_id,
     )
 
-    active = [c for c in claims if c.id not in locked_claim_ids]
+    active = [c for c in claims if c.id not in preserved_claim_ids]
     pair_meta, groups = _union_find_groups(active, vectors)
 
     created = 0
@@ -202,34 +214,40 @@ def form_clusters(
     return {
         "clusters_created": created,
         "locked_preserved": len(locked),
+        "trace_referenced_preserved": len(trace_referenced),
         "claims_considered": len(active),
         "algorithm": f"{ALGORITHM_KEY}:{ALGORITHM_VERSION}",
     }
 
 
-def _collect_locked_claim_ids(
-    repositories: RepositoryFactory, locked: list[ClaimCluster]
-) -> set[str]:
-    locked_claim_ids: set[str] = set()
-    for cluster in locked:
+def _collect_cluster_claim_ids(repositories: RepositoryFactory, clusters: list[ClaimCluster]) -> set[str]:
+    cluster_claim_ids: set[str] = set()
+    for cluster in clusters:
         for m in repositories.claim_cluster_memberships().list_for_cluster(cluster.id):
-            locked_claim_ids.add(m.source_claim_id)
-    return locked_claim_ids
+            cluster_claim_ids.add(m.source_claim_id)
+    return cluster_claim_ids
 
 
 def _reset_unlocked_clusters(
     session: Session,
     repositories: RepositoryFactory,
-    project_id: str,
-    analysis_version_id: str,
+    unlocked: list[ClaimCluster],
+    *,
+    preserved_cluster_ids: set[str],
 ) -> None:
-    unlocked = repositories.claim_clusters().list_by_lock_state(
-        project_id, analysis_version_id, is_locked=False
-    )
-    for cluster in unlocked:
+    removable = [cluster for cluster in unlocked if cluster.id not in preserved_cluster_ids]
+    for cluster in removable:
         memberships = repositories.claim_cluster_memberships().list_for_cluster(cluster.id)
         for membership in memberships:
             session.delete(membership)
+
+    # Claim-cluster memberships are persisted through a repository rather than
+    # an ORM relationship with delete-orphan ordering. Flush their removals
+    # before deleting the parent clusters so PostgreSQL FK enforcement sees the
+    # dependent rows gone first.
+    session.flush()
+
+    for cluster in removable:
         session.delete(cluster)
     session.flush()
 
@@ -349,13 +367,8 @@ def _persist_cluster_for_chunk(
     chunk = sorted(chunk, key=lambda c: c.id)
     label = chunk[0].subject_text or chunk[0].claim_text[:80]
     roles = sorted({c.claim_role for c in chunk})
-    ckey = "cluster:" + hashlib.sha256(
-        "|".join(c.id for c in chunk).encode()
-    ).hexdigest()[:16]
-    explanation = (
-        f"Grouped {len(chunk)} claims via {ALGORITHM_KEY} "
-        f"(roles={','.join(roles)}; max_size={cfg.max_size})"
-    )
+    ckey = "cluster:" + hashlib.sha256("|".join(c.id for c in chunk).encode()).hexdigest()[:16]
+    explanation = f"Grouped {len(chunk)} claims via {ALGORITHM_KEY} (roles={','.join(roles)}; max_size={cfg.max_size})"
     cluster = ClaimCluster(
         project_id=project_id,
         analysis_version_id=analysis_version_id,
@@ -366,10 +379,7 @@ def _persist_cluster_for_chunk(
         algorithm_version=ALGORITHM_VERSION,
         explanation=explanation,
         score=max(
-            (
-                pair_meta.get(_pair_key(chunk[0].id, m.id), {}).get("score", 0.0)
-                for m in chunk[1:]
-            ),
+            (pair_meta.get(_pair_key(chunk[0].id, m.id), {}).get("score", 0.0) for m in chunk[1:]),
             default=0.5,
         ),
         attributes_json={
@@ -502,14 +512,10 @@ def split_cluster(
     source = _require_cluster(session, cluster_id)
     if source.is_locked:
         raise ValueError("Cannot split locked cluster")
-    members = repositories.claim_cluster_memberships().list_for_cluster_claim_ids(
-        source.id, claim_ids
-    )
+    members = repositories.claim_cluster_memberships().list_for_cluster_claim_ids(source.id, claim_ids)
     if not members:
         raise ValueError("No matching memberships to split")
-    ckey = "cluster:" + hashlib.sha256(
-        f"split|{source.id}|{','.join(sorted(claim_ids))}".encode()
-    ).hexdigest()[:16]
+    ckey = "cluster:" + hashlib.sha256(f"split|{source.id}|{','.join(sorted(claim_ids))}".encode()).hexdigest()[:16]
     new_cluster = ClaimCluster(
         project_id=source.project_id,
         analysis_version_id=source.analysis_version_id,
