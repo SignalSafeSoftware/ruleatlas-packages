@@ -1,9 +1,7 @@
-"""Deterministic, integrity-checked encoding for compact AST payloads.
+"""Deterministic, integrity-checked encoding for packed AST payloads.
 
-The relational ``ast_nodes`` table remains the read model during the RA-01
-transition.  This module defines the canonical packed representation used for
-dual-write and later migration verification.  Keeping the format independent
-of ORM identifiers makes it portable across database copies and backfills.
+The format is independent of ORM identifiers, preserving portable historical
+citations without a row-per-node relational projection.
 """
 
 from __future__ import annotations
