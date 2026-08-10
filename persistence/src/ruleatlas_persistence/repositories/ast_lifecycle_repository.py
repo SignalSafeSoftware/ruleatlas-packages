@@ -14,10 +14,10 @@ from sqlalchemy.orm import Session, aliased
 from ruleatlas_persistence.models import (
     AnalysisVersion,
     AstDocument,
-    AstNode,
     AstNodeLink,
     AstParseRun,
     AstPayload,
+    AstPayloadBlob,
     GraphNode,
     RuleEvidence,
     SourceSymbol,
@@ -90,12 +90,9 @@ class AstLifecycleRepository:
         ).one()
         node_counts = self._session.execute(
             select(
-                func.count(AstNode.id),
-                func.count(AstNode.id).filter(AstNode.is_error.is_(True)),
-            )
-            .select_from(AstNode)
-            .join(AstDocument, AstDocument.ast_payload_id == AstNode.ast_payload_id)
-            .where(
+                func.coalesce(func.sum(AstDocument.node_count), 0),
+                func.coalesce(func.sum(AstDocument.error_node_count), 0),
+            ).where(
                 AstDocument.project_id == project_id,
                 AstDocument.analysis_version_id == analysis_version_id,
             )
@@ -188,7 +185,10 @@ class AstLifecycleRepository:
             self._session.scalar(
                 select(func.count())
                 .select_from(AstNodeLink)
-                .where(AstNodeLink.ast_document_id.in_(deleted_document_ids))
+                .where(
+                    AstNodeLink.ast_document_id.in_(deleted_document_ids)
+                    | AstNodeLink.target_ast_document_id.in_(deleted_document_ids)
+                )
             )
             or 0
         )
@@ -206,10 +206,13 @@ class AstLifecycleRepository:
             self._session.execute(
                 delete(AstNodeLink).where(
                     AstNodeLink.ast_document_id.in_(deleted_document_ids)
+                    | AstNodeLink.target_ast_document_id.in_(deleted_document_ids)
                 )
             )
             self._session.execute(
-                update(AstDocument).where(AstDocument.id.in_(deleted_document_ids)).values(root_node_id=None)
+                update(AstDocument)
+                .where(AstDocument.id.in_(deleted_document_ids))
+                .values(root_node_key=None)
             )
             self._session.execute(delete(AstDocument).where(AstDocument.id.in_(deleted_document_ids)))
             documents_deleted = len(deleted_document_ids)
@@ -222,37 +225,26 @@ class AstLifecycleRepository:
                                 AstDocument.ast_payload_id == AstPayload.id
                             )
                         ),
-                        ~exists(
-                            select(AstNodeLink.id)
-                            .join(
-                                AstNode,
-                                or_(
-                                    AstNode.id == AstNodeLink.ast_node_id,
-                                    AstNode.id == AstNodeLink.target_ast_node_id,
-                                ),
-                            )
-                            .where(AstNode.ast_payload_id == AstPayload.id)
-                        ),
                     )
                 )
             )
             if unreferenced_payload_ids:
                 nodes_deleted = int(
                     self._session.scalar(
-                        select(func.count())
-                        .select_from(AstNode)
-                        .where(AstNode.ast_payload_id.in_(unreferenced_payload_ids))
+                        select(func.coalesce(func.sum(AstPayload.node_count), 0)).where(
+                            AstPayload.id.in_(unreferenced_payload_ids)
+                        )
                     )
                     or 0
                 )
                 self._session.execute(
                     update(AstPayload)
                     .where(AstPayload.id.in_(unreferenced_payload_ids))
-                    .values(root_node_id=None)
+                    .values(root_node_key=None)
                 )
                 self._session.execute(
-                    delete(AstNode).where(
-                        AstNode.ast_payload_id.in_(unreferenced_payload_ids)
+                    delete(AstPayloadBlob).where(
+                        AstPayloadBlob.ast_payload_id.in_(unreferenced_payload_ids)
                     )
                 )
                 self._session.execute(
@@ -295,17 +287,10 @@ class AstLifecycleRepository:
     ) -> list[AstOrphanedLink]:
         if not 1 <= limit <= MAX_ORPHAN_REPORT_ROWS:
             raise ValueError(f"limit must be between 1 and {MAX_ORPHAN_REPORT_ROWS}")
-        target_ast_node = aliased(AstNode)
         target_graph_node = aliased(GraphNode)
         target_source_symbol = aliased(SourceSymbol)
         target_rule_evidence = aliased(RuleEvidence)
         missing_typed_target = or_(
-            (
-                AstNodeLink.target_ast_node_id.is_not(None)
-                & ~exists(
-                    select(target_ast_node.id).where(target_ast_node.id == AstNodeLink.target_ast_node_id)
-                ).correlate(AstNodeLink)
-            ),
             (
                 AstNodeLink.graph_node_id.is_not(None)
                 & ~exists(
@@ -339,7 +324,7 @@ class AstLifecycleRepository:
         return [
             AstOrphanedLink(
                 link_id=row.id,
-                source_node_id=row.ast_node_id,
+                source_node_id=row.ast_node_key,
                 target_type=row.target_type,
                 target_id=row.target_id,
             )
