@@ -52,7 +52,7 @@ class ClusterConfig:
     embedding_threshold: float = 0.78
     use_embeddings: bool = False
     embedding_model_key: str = "hash_bag"
-    embedding_model_version: str = "1"
+    embedding_model_version: str = "2"
 
 
 def _require_cluster(session: Session, cluster_id: str) -> ClaimCluster:
@@ -86,7 +86,7 @@ def content_hash(text: str) -> str:
 class EmbeddingProvider:
     """Optional embedding abstraction — default is deterministic hash bag (no external calls)."""
 
-    def __init__(self, model_key: str = "hash_bag", model_version: str = "1", dim: int = 32) -> None:
+    def __init__(self, model_key: str = "hash_bag", model_version: str = "2", dim: int = 32) -> None:
         self.model_key = model_key
         self.model_version = model_version
         self.dim = dim
@@ -94,7 +94,7 @@ class EmbeddingProvider:
     def embed(self, text: str) -> list[float]:
         vec = [0.0] * self.dim
         for token in _tokens(text):
-            idx = int(hashlib.md5(token.encode()).hexdigest(), 16) % self.dim
+            idx = int(hashlib.sha256(token.encode("utf-8")).hexdigest(), 16) % self.dim
             vec[idx] += 1.0
         norm = math.sqrt(sum(v * v for v in vec)) or 1.0
         return [v / norm for v in vec]
@@ -104,55 +104,94 @@ def cosine(a: list[float], b: list[float]) -> float:
     return sum(x * y for x, y in zip(a, b, strict=False))
 
 
-def _signals(a: SourceClaim, b: SourceClaim, *, lexical: float, embedding: float | None) -> dict:
-    if a.subject_text and b.subject_text and a.subject_text.strip().lower() != b.subject_text.strip().lower():
-        return {
-            "score": 0.0,
-            "reasons": ["subject_mismatch"],
-            "lexical": lexical,
-            "embedding": embedding,
-        }
-    shared_subject = bool(a.subject_text and b.subject_text and a.subject_text.lower() == b.subject_text.lower())
-    shared_path = bool(a.source_path and b.source_path and a.source_path == b.source_path)
-    shared_node = bool(a.graph_node_id and b.graph_node_id and a.graph_node_id == b.graph_node_id)
-    role_diversity = a.claim_role != b.claim_role
-    # Constants / thresholds crude signal
+def _both_present_equal(left: str | None, right: str | None, *, ignore_case: bool = False) -> bool:
+    if not left or not right:
+        return False
+    if ignore_case:
+        return left.lower() == right.lower()
+    return left == right
+
+
+def _subjects_conflict(a: SourceClaim, b: SourceClaim) -> bool:
+    left = (a.subject_text or "").strip().lower()
+    right = (b.subject_text or "").strip().lower()
+    return bool(left and right and left != right)
+
+
+@dataclass
+class _PairFlags:
+    shared_subject: bool
+    shared_path: bool
+    shared_node: bool
+    role_diversity: bool
+    shared_constants: bool
+    action_overlap: bool
+
+    @property
+    def structured(self) -> bool:
+        return self.shared_node or self.shared_subject or self.shared_path or self.shared_constants or self.action_overlap
+
+
+def _pair_flags(a: SourceClaim, b: SourceClaim) -> _PairFlags:
     nums_a = set(re.findall(r"\b\d+\b", a.claim_text or ""))
     nums_b = set(re.findall(r"\b\d+\b", b.claim_text or ""))
-    shared_constants = bool(nums_a & nums_b)
+    return _PairFlags(
+        shared_subject=_both_present_equal(a.subject_text, b.subject_text, ignore_case=True),
+        shared_path=_both_present_equal(a.source_path, b.source_path),
+        shared_node=_both_present_equal(a.graph_node_id, b.graph_node_id),
+        role_diversity=a.claim_role != b.claim_role,
+        shared_constants=bool(nums_a & nums_b),
+        action_overlap=bool(a.action_text and b.action_text and _tokens(a.action_text) & _tokens(b.action_text)),
+    )
+
+
+def _structured_score(flags: _PairFlags) -> tuple[float, list[str]]:
     score = 0.0
-    reasons = []
-    if shared_node:
+    reasons: list[str] = []
+    if flags.shared_node:
         score += 0.45
         reasons.append("shared_graph_node")
-    if shared_subject:
+    if flags.shared_subject:
         score += 0.4
         reasons.append("shared_subject")
-    if shared_path and role_diversity:
-        score += 0.2
-        reasons.append("same_path_diverse_roles")
-    elif shared_path:
-        score += 0.08
-        reasons.append("same_path")
-    if shared_constants:
+    if flags.shared_path:
+        if flags.role_diversity:
+            score += 0.2
+            reasons.append("same_path_diverse_roles")
+        else:
+            score += 0.08
+            reasons.append("same_path")
+    if flags.shared_constants:
         score += 0.1
         reasons.append("shared_constants")
-    action_overlap = bool(a.action_text and b.action_text and _tokens(a.action_text) & _tokens(b.action_text))
-    if action_overlap:
+    if flags.action_overlap:
         score += 0.15
         reasons.append("shared_action_tokens")
+    return score, reasons
+
+
+def _similarity_bonus(lexical: float, embedding: float | None) -> tuple[float, list[str]]:
+    score = 0.0
+    reasons: list[str] = []
     if lexical >= 0.45:
         score += min(lexical, 0.35)
         reasons.append(f"lexical:{lexical:.2f}")
     if embedding is not None and embedding >= 0.78:
         score += min(embedding * 0.25, 0.25)
         reasons.append(f"embedding:{embedding:.2f}")
-    # Do not cluster solely on generic words — require at least one structured signal
-    # or strong lexical with shared subject/path
-    structured = shared_node or shared_subject or shared_path or shared_constants or action_overlap
-    if not structured and lexical < 0.6:
-        score = 0.0
-        reasons = ["rejected_generic_only"]
+    return score, reasons
+
+
+def _signals(a: SourceClaim, b: SourceClaim, *, lexical: float, embedding: float | None) -> dict:
+    if _subjects_conflict(a, b):
+        return {"score": 0.0, "reasons": ["subject_mismatch"], "lexical": lexical, "embedding": embedding}
+    flags = _pair_flags(a, b)
+    score, reasons = _structured_score(flags)
+    sim_score, sim_reasons = _similarity_bonus(lexical, embedding)
+    score += sim_score
+    reasons.extend(sim_reasons)
+    if not flags.structured and lexical < 0.6:
+        return {"score": 0.0, "reasons": ["rejected_generic_only"], "lexical": lexical, "embedding": embedding}
     return {"score": score, "reasons": reasons, "lexical": lexical, "embedding": embedding}
 
 
@@ -342,7 +381,7 @@ def _split_oversized(members: list[SourceClaim], cfg: ClusterConfig) -> list[lis
         chunk = [seed]
         scored = sorted(
             remaining,
-            key=lambda c: lexical_similarity(seed.claim_text, c.claim_text),
+            key=lambda c, seed=seed: lexical_similarity(seed.claim_text, c.claim_text),
             reverse=True,
         )
         for c in scored:

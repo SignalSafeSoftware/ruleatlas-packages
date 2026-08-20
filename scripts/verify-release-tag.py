@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+import os
 import re
 from pathlib import Path
 
@@ -21,8 +22,20 @@ PACKAGES = {
 TAG_PATTERN = re.compile(r"^(?P<package>[a-z-]+)-v(?P<version>\d+\.\d+\.\d+)$")
 
 
-def package_version(path: Path) -> str:
-    module = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+def _resolve_under_root(path: Path, root: Path) -> Path:
+    candidate = path.expanduser()
+    if not candidate.is_absolute():
+        candidate = root / candidate
+    resolved = candidate.resolve()
+    if not resolved.is_relative_to(root):
+        raise SystemExit(f"{path}: path is outside the working directory")
+    return resolved
+
+
+def package_version(path: Path, *, cwd: Path | None = None) -> str:
+    root = (cwd or Path.cwd()).resolve()
+    resolved = _resolve_under_root(path, root)
+    module = ast.parse(resolved.read_text(encoding="utf-8"), filename=str(resolved))
     for node in module.body:
         if (
             isinstance(node, ast.Assign)
@@ -32,6 +45,30 @@ def package_version(path: Path) -> str:
         ):
             return node.value.value
     raise SystemExit(f"{path}: __version__ string was not found")
+
+
+def validated_github_output_path(
+    path: Path,
+    *,
+    cwd: Path | None = None,
+    github_output: str | None = None,
+) -> Path:
+    """Resolve *path* and reject writes outside the trusted GitHub output file or cwd."""
+    root = (cwd or Path.cwd()).resolve()
+    expected = os.environ["GITHUB_OUTPUT"] if github_output is None and "GITHUB_OUTPUT" in os.environ else github_output
+    if expected:
+        allowed = Path(expected).expanduser()
+        if not allowed.is_absolute():
+            allowed = root / allowed
+        allowed = allowed.resolve()
+        resolved = path.expanduser()
+        if not resolved.is_absolute():
+            resolved = root / resolved
+        resolved = resolved.resolve()
+        if resolved != allowed:
+            raise SystemExit("github-output path does not match GITHUB_OUTPUT")
+        return resolved
+    return _resolve_under_root(path, root)
 
 
 def main() -> None:
@@ -54,7 +91,8 @@ def main() -> None:
         )
 
     if args.github_output:
-        with args.github_output.open("a", encoding="utf-8") as output:
+        output_path = validated_github_output_path(args.github_output)
+        with output_path.open("a", encoding="utf-8") as output:
             output.write(f"package={package}\nversion={source_version}\n")
     print(f"{package} release tag matches version {source_version}")
 
