@@ -12,6 +12,7 @@ import hashlib
 from ruleatlas_contracts.claims import ClaimDraft as ClaimDraft
 from ruleatlas_contracts.enums import SourceClaimRole, SourceClaimStatus
 from ruleatlas_persistence.models import (
+    GraphNode,
     SourceClaim,
     SourceClaimEvidence,
 )
@@ -255,7 +256,7 @@ _STRUCTURAL_NAME_HINTS = (
 )
 
 
-def _structural_kind_for_node(node) -> str | None:
+def _structural_kind_for_node(node: GraphNode) -> str | None:
     kind = node.symbol_kind or ""
     attrs = node.attributes_json or {}
     if attrs.get("pattern"):
@@ -274,7 +275,7 @@ def _structural_claim_draft(
     *,
     project_id: str,
     analysis_version_id: str,
-    node,
+    node: GraphNode,
     kind: str,
 ) -> ClaimDraft:
     title, condition, action, confidence = _STRUCTURAL_PATTERN_KINDS[kind]

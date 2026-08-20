@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Iterable
 
 from ruleatlas_contracts.enums import GraphObservationKind, GraphProviderStatus, GraphResolutionType
 from ruleatlas_contracts.graph_contract import NormalizedGraphEdge, StructuralAnalysisResult
@@ -443,7 +444,7 @@ def _path_payload(
 
 
 def _expand_path_frontier(
-    edges,
+    edges: Iterable[GraphEdge],
     *,
     visited: set[str],
     parent: dict[str, tuple[str, str]],
