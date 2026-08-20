@@ -129,7 +129,13 @@ class _PairFlags:
 
     @property
     def structured(self) -> bool:
-        return self.shared_node or self.shared_subject or self.shared_path or self.shared_constants or self.action_overlap
+        return (
+            self.shared_node
+            or self.shared_subject
+            or self.shared_path
+            or self.shared_constants
+            or self.action_overlap
+        )
 
 
 def _pair_flags(a: SourceClaim, b: SourceClaim) -> _PairFlags:
