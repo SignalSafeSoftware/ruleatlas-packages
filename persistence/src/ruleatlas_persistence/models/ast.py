@@ -26,6 +26,8 @@ from ._base import (
     uuid_str,
 )
 
+CK_ERROR_NODE_COUNT_BOUNDED = "error_node_count <= node_count"
+
 
 class AstParseRun(Base, TimestampMixin):
     __tablename__ = "ast_parse_runs"
@@ -92,7 +94,7 @@ class AstPayload(Base, TimestampMixin):
             name="ck_ast_payloads_counts_nonnegative",
         ),
         CheckConstraint(
-            "error_node_count <= node_count",
+            CK_ERROR_NODE_COUNT_BOUNDED,
             name="ck_ast_payloads_error_nodes_bounded",
         ),
     )
@@ -125,7 +127,7 @@ class AstPayloadBlob(Base, TimestampMixin):
             name="ck_ast_payload_blobs_size_counts_nonnegative",
         ),
         CheckConstraint(
-            "error_node_count <= node_count",
+            CK_ERROR_NODE_COUNT_BOUNDED,
             name="ck_ast_payload_blobs_error_nodes_bounded",
         ),
     )
@@ -168,7 +170,7 @@ class AstDocument(Base, TimestampMixin):
             name="ck_ast_documents_counts_nonnegative",
         ),
         CheckConstraint(
-            "error_node_count <= node_count",
+            CK_ERROR_NODE_COUNT_BOUNDED,
             name="ck_ast_documents_error_nodes_bounded",
         ),
     )

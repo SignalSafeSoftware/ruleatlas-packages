@@ -18,31 +18,47 @@ def resolve_bdd_claim_role(policy: str) -> str:
     return SourceClaimRole.PRODUCT_INTENT.value
 
 
-def claims_from_scenario(
-    *,
-    feature: BddFeature,
-    scenario: BddScenario,
-    steps: list[BddStep],
-    links: dict[str, BddStepLink],
-    claim_role: str,
-) -> ClaimDraft:
-    givens = [s.text for s in steps if (s.keyword_type or "").lower() == "context" or s.keyword.lower().startswith("given")]
-    whens = [s.text for s in steps if (s.keyword_type or "").lower() == "action" or s.keyword.lower().startswith("when")]
-    thens = [s.text for s in steps if (s.keyword_type or "").lower() == "outcome" or s.keyword.lower().startswith("then")]
-    # And/But inherit previous keyword type via sequential scan
-    if not givens and not whens and not thens:
-        for step in steps:
-            kw = step.keyword.lower()
-            if kw.startswith("given"):
-                givens.append(step.text)
-            elif kw.startswith("when"):
-                whens.append(step.text)
-            elif kw.startswith("then"):
-                thens.append(step.text)
-            elif kw.startswith(("and", "but")):
-                (thens or whens or givens).append(step.text)
+def _keyword_bucket(step: BddStep) -> str | None:
+    keyword_type = (step.keyword_type or "").lower()
+    keyword = step.keyword.lower()
+    if keyword_type == "context" or keyword.startswith("given"):
+        return "given"
+    if keyword_type == "action" or keyword.startswith("when"):
+        return "when"
+    if keyword_type == "outcome" or keyword.startswith("then"):
+        return "then"
+    return None
 
-    linked_defs = []
+
+def _inherit_and_but(steps: list[BddStep], givens: list[str], whens: list[str], thens: list[str]) -> None:
+    for step in steps:
+        keyword = step.keyword.lower()
+        if keyword.startswith("given"):
+            givens.append(step.text)
+        elif keyword.startswith("when"):
+            whens.append(step.text)
+        elif keyword.startswith("then"):
+            thens.append(step.text)
+        elif keyword.startswith(("and", "but")):
+            (thens or whens or givens).append(step.text)
+
+
+def _partition_step_texts(steps: list[BddStep]) -> tuple[list[str], list[str], list[str]]:
+    givens: list[str] = []
+    whens: list[str] = []
+    thens: list[str] = []
+    buckets = {"given": givens, "when": whens, "then": thens}
+    for step in steps:
+        bucket = _keyword_bucket(step)
+        if bucket is not None:
+            buckets[bucket].append(step.text)
+    if not givens and not whens and not thens:
+        _inherit_and_but(steps, givens, whens, thens)
+    return givens, whens, thens
+
+
+def _linked_definitions(steps: list[BddStep], links: dict[str, BddStepLink]) -> list[dict[str, str | None]]:
+    linked_defs: list[dict[str, str | None]] = []
     for step in steps:
         link = links.get(step.id)
         if link and link.status == BddStepLinkStatus.LINKED.value:
@@ -53,7 +69,19 @@ def claims_from_scenario(
                     "definition_name": link.definition_name,
                 }
             )
+    return linked_defs
 
+
+def claims_from_scenario(
+    *,
+    feature: BddFeature,
+    scenario: BddScenario,
+    steps: list[BddStep],
+    links: dict[str, BddStepLink],
+    claim_role: str,
+) -> ClaimDraft:
+    givens, whens, thens = _partition_step_texts(steps)
+    linked_defs = _linked_definitions(steps, links)
     claim_text = f"BDD scenario '{scenario.name}'"
     if thens:
         claim_text = f"{claim_text}: {thens[0]}"

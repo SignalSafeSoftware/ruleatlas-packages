@@ -86,6 +86,120 @@ def apply_process_limits(limits: SandboxLimits | None = None) -> dict:
     return applied
 
 
+_TEXT_SAMPLE_SUFFIXES = {
+    ".py",
+    ".ts",
+    ".js",
+    ".cs",
+    ".php",
+    ".env",
+    ".json",
+    ".yml",
+    ".yaml",
+    ".txt",
+}
+
+
+def _keep_directory(
+    rel_dir: Path,
+    dirpath: str,
+    dirnames: list[str],
+    limits: SandboxLimits,
+    violations: list[str],
+    root: Path,
+) -> bool:
+    if len(rel_dir.parts) > limits.max_depth:
+        violations.append(f"max depth exceeded at {rel_dir}")
+        dirnames.clear()
+        return False
+    blocked = [name for name in dirnames if (Path(dirpath) / name).is_symlink()]
+    for name in blocked:
+        path = Path(dirpath) / name
+        violations.append(f"symlink directory blocked: {path.relative_to(root)}")
+        dirnames.remove(name)
+    return True
+
+
+def _redact_text_sample(path: Path) -> int:
+    if path.suffix.lower() not in _TEXT_SAMPLE_SUFFIXES:
+        return 0
+    try:
+        sample = path.read_text(encoding="utf-8", errors="ignore")[:50_000]
+    except OSError:
+        return 0
+    _, count = redact_secrets(sample)
+    return count
+
+
+def _scan_workspace_file(
+    path: Path,
+    *,
+    root: Path,
+    limits: SandboxLimits,
+    violations: list[str],
+) -> tuple[int | None, int]:
+    if path.is_symlink():
+        violations.append(f"symlink file blocked: {path.relative_to(root)}")
+        return None, 0
+    try:
+        size = path.stat().st_size
+    except OSError as exc:
+        violations.append(f"stat failed: {path.relative_to(root)} ({exc})")
+        return None, 0
+    if size > limits.max_file_bytes:
+        violations.append(f"file too large: {path.relative_to(root)} ({size} bytes)")
+        return None, 0
+    return size, _redact_text_sample(path)
+
+
+@dataclass
+class _ScanTotals:
+    total_bytes: int = 0
+    file_count: int = 0
+    redactions: int = 0
+
+
+def _record_scanned_file(
+    totals: _ScanTotals,
+    added: int | None,
+    extra_redactions: int,
+    limits: SandboxLimits,
+) -> None:
+    if added is None:
+        return
+    totals.total_bytes += added
+    totals.file_count += 1
+    totals.redactions += extra_redactions
+    if totals.file_count > limits.max_files:
+        raise SandboxViolation("max file count exceeded")
+    if totals.total_bytes > limits.max_total_bytes:
+        raise SandboxViolation("max total bytes exceeded (archive bomb / oversized tree)")
+
+
+def _scan_filenames(
+    dirpath: str,
+    filenames: list[str],
+    *,
+    root: Path,
+    limits: SandboxLimits,
+    violations: list[str],
+    totals: _ScanTotals,
+) -> None:
+    for name in filenames:
+        added, extra_redactions = _scan_workspace_file(
+            Path(dirpath) / name,
+            root=root,
+            limits=limits,
+            violations=violations,
+        )
+        _record_scanned_file(totals, added, extra_redactions, limits)
+
+
+def _raise_if_scan_violations(violations: list[str]) -> None:
+    if violations:
+        raise SandboxViolation("; ".join(violations[:20]))
+
+
 def scan_workspace(
     root: Path,
     *,
@@ -97,58 +211,25 @@ def scan_workspace(
     if not root.is_dir():
         raise SandboxViolation(f"Workspace root is not a directory: {root}")
 
-    total_bytes = 0
-    file_count = 0
-    redactions = 0
+    totals = _ScanTotals()
     violations: list[str] = []
-
     for dirpath, dirnames, filenames in os.walk(root, followlinks=False):
         rel_dir = Path(dirpath).relative_to(root)
-        depth = len(rel_dir.parts)
-        if depth > limits.max_depth:
-            violations.append(f"max depth exceeded at {rel_dir}")
-            dirnames.clear()
+        if not _keep_directory(rel_dir, dirpath, dirnames, limits, violations, root):
             continue
-        # Block symlink dirs
-        for name in list(dirnames):
-            p = Path(dirpath) / name
-            if p.is_symlink():
-                violations.append(f"symlink directory blocked: {p.relative_to(root)}")
-                dirnames.remove(name)
-        for name in filenames:
-            path = Path(dirpath) / name
-            if path.is_symlink():
-                violations.append(f"symlink file blocked: {path.relative_to(root)}")
-                continue
-            try:
-                size = path.stat().st_size
-            except OSError as exc:
-                violations.append(f"stat failed: {path.relative_to(root)} ({exc})")
-                continue
-            if size > limits.max_file_bytes:
-                violations.append(f"file too large: {path.relative_to(root)} ({size} bytes)")
-                continue
-            total_bytes += size
-            file_count += 1
-            if file_count > limits.max_files:
-                raise SandboxViolation("max file count exceeded")
-            if total_bytes > limits.max_total_bytes:
-                raise SandboxViolation("max total bytes exceeded (archive bomb / oversized tree)")
-            if path.suffix.lower() in {".py", ".ts", ".js", ".cs", ".php", ".env", ".json", ".yml", ".yaml", ".txt"}:
-                try:
-                    sample = path.read_text(encoding="utf-8", errors="ignore")[:50_000]
-                    _, n = redact_secrets(sample)
-                    redactions += n
-                except OSError:
-                    pass
-
-    if violations:
-        raise SandboxViolation("; ".join(violations[:20]))
-
+        _scan_filenames(
+            dirpath,
+            filenames,
+            root=root,
+            limits=limits,
+            violations=violations,
+            totals=totals,
+        )
+    _raise_if_scan_violations(violations)
     return {
-        "files": file_count,
-        "total_bytes": total_bytes,
-        "secrets_redacted_samples": redactions,
+        "files": totals.file_count,
+        "total_bytes": totals.total_bytes,
+        "secrets_redacted_samples": totals.redactions,
         "root": str(root),
         "read_only_mount_recommended": True,
         "network_egress": False,

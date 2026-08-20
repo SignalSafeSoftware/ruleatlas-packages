@@ -5,6 +5,7 @@ from __future__ import annotations
 from ._base import (
     FK_ORGANIZATIONS_ID,
     FK_PROJECTS_ID,
+    FK_TICKET_CONNECTIONS_ID,
     JSON,
     Base,
     Boolean,
@@ -57,7 +58,7 @@ class TicketSyncCursor(Base, TimestampMixin):
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
-    connection_id: Mapped[str] = mapped_column(ForeignKey("ticket_connections.id"), nullable=False)
+    connection_id: Mapped[str] = mapped_column(ForeignKey(FK_TICKET_CONNECTIONS_ID), nullable=False)
     cursor_value: Mapped[str] = mapped_column(String(512), nullable=False, default="")
     last_success_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     attributes_json: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
@@ -73,7 +74,7 @@ class ExternalTicket(Base, TimestampMixin):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
     organization_id: Mapped[str] = mapped_column(ForeignKey(FK_ORGANIZATIONS_ID), nullable=False)
     project_id: Mapped[str | None] = mapped_column(ForeignKey(FK_PROJECTS_ID))
-    connection_id: Mapped[str] = mapped_column(ForeignKey("ticket_connections.id"), nullable=False)
+    connection_id: Mapped[str] = mapped_column(ForeignKey(FK_TICKET_CONNECTIONS_ID), nullable=False)
     provider_key: Mapped[str] = mapped_column(String(32), nullable=False)
     external_id: Mapped[str] = mapped_column(String(128), nullable=False)
     key: Mapped[str] = mapped_column(String(128), nullable=False)
@@ -116,7 +117,7 @@ class TicketWebhookDelivery(Base, TimestampMixin):
     __table_args__ = (Index("ix_ticket_webhook_connection_status", "connection_id", "status"),)
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
-    connection_id: Mapped[str] = mapped_column(ForeignKey("ticket_connections.id"), nullable=False)
+    connection_id: Mapped[str] = mapped_column(ForeignKey(FK_TICKET_CONNECTIONS_ID), nullable=False)
     provider_key: Mapped[str] = mapped_column(String(32), nullable=False)
     delivery_id: Mapped[str | None] = mapped_column(String(128))
     event_type: Mapped[str] = mapped_column(String(64), nullable=False, default="unknown")

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
+import pytest
 from sqlalchemy import create_engine
 
 import ruleatlas_persistence.models as _models  # noqa: F401  (register every table on Base.metadata)
@@ -20,7 +21,8 @@ def test_now_utc_is_utc_datetime() -> None:
 
 def test_uuid_str_is_unique() -> None:
     a, b = uuid_str(), uuid_str()
-    assert isinstance(a, str) and len(a) >= 32
+    assert isinstance(a, str)
+    assert len(a) >= 32
     assert a != b
 
 
@@ -33,19 +35,16 @@ def test_all_tables_create_in_sqlite() -> None:
     engine.dispose()
 
 
-def test_audit_port_delegates_to_registered_recorder() -> None:
-    original = audit._recorder
+def test_audit_port_delegates_to_registered_recorder(monkeypatch: pytest.MonkeyPatch) -> None:
     seen: list[dict] = []
 
     def fake(session: object, **kwargs: object) -> object:
         seen.append(kwargs)
         return object()
 
-    try:
-        audit.set_audit_recorder(fake)
-        audit.record_audit_event(None, event_type="test.event", summary="hello")
-    finally:
-        audit._recorder = original
+    monkeypatch.setattr(audit, "_recorder", fake)
+    audit.record_audit_event(None, event_type="test.event", summary="hello")
 
-    assert seen and seen[0]["summary"] == "hello"
+    assert seen
+    assert seen[0]["summary"] == "hello"
     assert seen[0]["event_type"] == "test.event"

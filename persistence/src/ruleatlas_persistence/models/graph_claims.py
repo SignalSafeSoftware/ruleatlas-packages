@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 from ._base import (
+    FK_ANALYSIS_VERSIONS_ID,
+    FK_GRAPH_NODES_ID,
     FK_PROJECTS_ID,
     FK_SCAN_RUNS_ID,
+    FK_SOURCE_CLAIMS_ID,
     JSON,
     Base,
     BddStepLinkStatus,
@@ -42,7 +45,7 @@ class GraphProviderRun(Base, TimestampMixin):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
     project_id: Mapped[str] = mapped_column(ForeignKey(FK_PROJECTS_ID), nullable=False)
-    analysis_version_id: Mapped[str | None] = mapped_column(ForeignKey("analysis_versions.id"))
+    analysis_version_id: Mapped[str | None] = mapped_column(ForeignKey(FK_ANALYSIS_VERSIONS_ID))
     scan_run_id: Mapped[str | None] = mapped_column(ForeignKey(FK_SCAN_RUNS_ID))
     provider_key: Mapped[str] = mapped_column(String(64), nullable=False)
     provider_version: Mapped[str | None] = mapped_column(String(64))
@@ -73,7 +76,7 @@ class GraphNode(Base, TimestampMixin):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
     project_id: Mapped[str] = mapped_column(ForeignKey(FK_PROJECTS_ID), nullable=False)
-    analysis_version_id: Mapped[str] = mapped_column(ForeignKey("analysis_versions.id"), nullable=False)
+    analysis_version_id: Mapped[str] = mapped_column(ForeignKey(FK_ANALYSIS_VERSIONS_ID), nullable=False)
     canonical_key: Mapped[str] = mapped_column(String(512), nullable=False)
     node_type: Mapped[str] = mapped_column(String(64), nullable=False)
     display_name: Mapped[str] = mapped_column(String(512), nullable=False)
@@ -99,11 +102,11 @@ class GraphEdge(Base, TimestampMixin):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
     project_id: Mapped[str] = mapped_column(ForeignKey(FK_PROJECTS_ID), nullable=False)
-    analysis_version_id: Mapped[str] = mapped_column(ForeignKey("analysis_versions.id"), nullable=False)
+    analysis_version_id: Mapped[str] = mapped_column(ForeignKey(FK_ANALYSIS_VERSIONS_ID), nullable=False)
     canonical_key: Mapped[str] = mapped_column(String(768), nullable=False)
     edge_type: Mapped[str] = mapped_column(String(64), nullable=False)
-    from_node_id: Mapped[str] = mapped_column(ForeignKey("graph_nodes.id"), nullable=False)
-    to_node_id: Mapped[str] = mapped_column(ForeignKey("graph_nodes.id"), nullable=False)
+    from_node_id: Mapped[str] = mapped_column(ForeignKey(FK_GRAPH_NODES_ID), nullable=False)
+    to_node_id: Mapped[str] = mapped_column(ForeignKey(FK_GRAPH_NODES_ID), nullable=False)
     confidence: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
     resolution_type: Mapped[str] = mapped_column(
         String(32), default=GraphResolutionType.EXTRACTED.value, nullable=False
@@ -125,11 +128,11 @@ class GraphObservation(Base, TimestampMixin):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
     project_id: Mapped[str] = mapped_column(ForeignKey(FK_PROJECTS_ID), nullable=False)
-    analysis_version_id: Mapped[str] = mapped_column(ForeignKey("analysis_versions.id"), nullable=False)
+    analysis_version_id: Mapped[str] = mapped_column(ForeignKey(FK_ANALYSIS_VERSIONS_ID), nullable=False)
     provider_run_id: Mapped[str] = mapped_column(ForeignKey("graph_provider_runs.id"), nullable=False)
     observation_kind: Mapped[str] = mapped_column(String(32), nullable=False)
     provider_object_id: Mapped[str] = mapped_column(String(255), nullable=False)
-    node_id: Mapped[str | None] = mapped_column(ForeignKey("graph_nodes.id"))
+    node_id: Mapped[str | None] = mapped_column(ForeignKey(FK_GRAPH_NODES_ID))
     edge_id: Mapped[str | None] = mapped_column(ForeignKey("graph_edges.id"))
     confidence: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
     resolution_type: Mapped[str] = mapped_column(
@@ -146,7 +149,7 @@ class GraphCommunity(Base, TimestampMixin):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
     project_id: Mapped[str] = mapped_column(ForeignKey(FK_PROJECTS_ID), nullable=False)
-    analysis_version_id: Mapped[str] = mapped_column(ForeignKey("analysis_versions.id"), nullable=False)
+    analysis_version_id: Mapped[str] = mapped_column(ForeignKey(FK_ANALYSIS_VERSIONS_ID), nullable=False)
     canonical_key: Mapped[str] = mapped_column(String(512), nullable=False)
     label: Mapped[str] = mapped_column(String(255), nullable=False)
     node_ids: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
@@ -164,7 +167,7 @@ class GraphHyperedge(Base, TimestampMixin):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
     project_id: Mapped[str] = mapped_column(ForeignKey(FK_PROJECTS_ID), nullable=False)
-    analysis_version_id: Mapped[str] = mapped_column(ForeignKey("analysis_versions.id"), nullable=False)
+    analysis_version_id: Mapped[str] = mapped_column(ForeignKey(FK_ANALYSIS_VERSIONS_ID), nullable=False)
     canonical_key: Mapped[str] = mapped_column(String(512), nullable=False)
     hyperedge_type: Mapped[str] = mapped_column(String(64), nullable=False)
     node_ids: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
@@ -183,7 +186,7 @@ class SourceClaim(Base, TimestampMixin):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
     project_id: Mapped[str] = mapped_column(ForeignKey(FK_PROJECTS_ID), nullable=False)
-    analysis_version_id: Mapped[str] = mapped_column(ForeignKey("analysis_versions.id"), nullable=False)
+    analysis_version_id: Mapped[str] = mapped_column(ForeignKey(FK_ANALYSIS_VERSIONS_ID), nullable=False)
     scan_run_id: Mapped[str | None] = mapped_column(ForeignKey(FK_SCAN_RUNS_ID))
     canonical_key: Mapped[str] = mapped_column(String(512), nullable=False)
     claim_text: Mapped[str] = mapped_column(Text, nullable=False)
@@ -203,7 +206,7 @@ class SourceClaim(Base, TimestampMixin):
     source_path: Mapped[str | None] = mapped_column(String(1024))
     start_line: Mapped[int | None] = mapped_column(Integer)
     end_line: Mapped[int | None] = mapped_column(Integer)
-    graph_node_id: Mapped[str | None] = mapped_column(ForeignKey("graph_nodes.id"))
+    graph_node_id: Mapped[str | None] = mapped_column(ForeignKey(FK_GRAPH_NODES_ID))
     attributes_json: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
     is_canonical: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
@@ -213,13 +216,13 @@ class SourceClaimEvidence(Base, TimestampMixin):
     __table_args__ = (Index("ix_source_claim_evidence_claim", "source_claim_id"),)
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
-    source_claim_id: Mapped[str] = mapped_column(ForeignKey("source_claims.id"), nullable=False)
+    source_claim_id: Mapped[str] = mapped_column(ForeignKey(FK_SOURCE_CLAIMS_ID), nullable=False)
     evidence_kind: Mapped[str] = mapped_column(String(64), nullable=False, default="source_span")
     reference_path: Mapped[str] = mapped_column(String(1024), nullable=False)
     start_line: Mapped[int | None] = mapped_column(Integer)
     end_line: Mapped[int | None] = mapped_column(Integer)
     excerpt: Mapped[str | None] = mapped_column(Text)
-    graph_node_id: Mapped[str | None] = mapped_column(ForeignKey("graph_nodes.id"))
+    graph_node_id: Mapped[str | None] = mapped_column(ForeignKey(FK_GRAPH_NODES_ID))
     graph_edge_id: Mapped[str | None] = mapped_column(ForeignKey("graph_edges.id"))
     attributes_json: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
 
@@ -236,7 +239,7 @@ class TestEvidenceCase(Base, TimestampMixin):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
     project_id: Mapped[str] = mapped_column(ForeignKey(FK_PROJECTS_ID), nullable=False)
-    analysis_version_id: Mapped[str] = mapped_column(ForeignKey("analysis_versions.id"), nullable=False)
+    analysis_version_id: Mapped[str] = mapped_column(ForeignKey(FK_ANALYSIS_VERSIONS_ID), nullable=False)
     scan_run_id: Mapped[str | None] = mapped_column(ForeignKey(FK_SCAN_RUNS_ID))
     canonical_key: Mapped[str] = mapped_column(String(512), nullable=False)
     name: Mapped[str] = mapped_column(String(512), nullable=False)
@@ -250,7 +253,7 @@ class TestEvidenceCase(Base, TimestampMixin):
     given_text: Mapped[str | None] = mapped_column(Text)
     when_text: Mapped[str | None] = mapped_column(Text)
     then_text: Mapped[str | None] = mapped_column(Text)
-    graph_node_id: Mapped[str | None] = mapped_column(ForeignKey("graph_nodes.id"))
+    graph_node_id: Mapped[str | None] = mapped_column(ForeignKey(FK_GRAPH_NODES_ID))
     production_symbol_key: Mapped[str | None] = mapped_column(String(512))
     production_link_status: Mapped[str] = mapped_column(String(32), default="unresolved", nullable=False)
     production_link_confidence: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
@@ -282,7 +285,7 @@ class TestFixture(Base, TimestampMixin):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
     project_id: Mapped[str] = mapped_column(ForeignKey(FK_PROJECTS_ID), nullable=False)
-    analysis_version_id: Mapped[str] = mapped_column(ForeignKey("analysis_versions.id"), nullable=False)
+    analysis_version_id: Mapped[str] = mapped_column(ForeignKey(FK_ANALYSIS_VERSIONS_ID), nullable=False)
     canonical_key: Mapped[str] = mapped_column(String(512), nullable=False)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     framework: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -301,7 +304,7 @@ class TestExecution(Base, TimestampMixin):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
     project_id: Mapped[str] = mapped_column(ForeignKey(FK_PROJECTS_ID), nullable=False)
-    analysis_version_id: Mapped[str] = mapped_column(ForeignKey("analysis_versions.id"), nullable=False)
+    analysis_version_id: Mapped[str] = mapped_column(ForeignKey(FK_ANALYSIS_VERSIONS_ID), nullable=False)
     test_evidence_case_id: Mapped[str] = mapped_column(ForeignKey("test_evidence_cases.id"), nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default=TestExecutionStatus.UNKNOWN.value)
     duration_ms: Mapped[int | None] = mapped_column(Integer)
@@ -319,7 +322,7 @@ class BddFeature(Base, TimestampMixin):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
     project_id: Mapped[str] = mapped_column(ForeignKey(FK_PROJECTS_ID), nullable=False)
-    analysis_version_id: Mapped[str] = mapped_column(ForeignKey("analysis_versions.id"), nullable=False)
+    analysis_version_id: Mapped[str] = mapped_column(ForeignKey(FK_ANALYSIS_VERSIONS_ID), nullable=False)
     canonical_key: Mapped[str] = mapped_column(String(512), nullable=False)
     name: Mapped[str] = mapped_column(String(512), nullable=False)
     language: Mapped[str] = mapped_column(String(16), default="en", nullable=False)
@@ -341,7 +344,7 @@ class BddScenario(Base, TimestampMixin):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
     project_id: Mapped[str] = mapped_column(ForeignKey(FK_PROJECTS_ID), nullable=False)
-    analysis_version_id: Mapped[str] = mapped_column(ForeignKey("analysis_versions.id"), nullable=False)
+    analysis_version_id: Mapped[str] = mapped_column(ForeignKey(FK_ANALYSIS_VERSIONS_ID), nullable=False)
     bdd_feature_id: Mapped[str] = mapped_column(ForeignKey("bdd_features.id"), nullable=False)
     canonical_key: Mapped[str] = mapped_column(String(512), nullable=False)
     name: Mapped[str] = mapped_column(String(512), nullable=False)
@@ -350,7 +353,7 @@ class BddScenario(Base, TimestampMixin):
     start_line: Mapped[int | None] = mapped_column(Integer)
     tags_json: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
     examples_json: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
-    graph_node_id: Mapped[str | None] = mapped_column(ForeignKey("graph_nodes.id"))
+    graph_node_id: Mapped[str | None] = mapped_column(ForeignKey(FK_GRAPH_NODES_ID))
     attributes_json: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
 
 
@@ -360,7 +363,7 @@ class BddStep(Base, TimestampMixin):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
     project_id: Mapped[str] = mapped_column(ForeignKey(FK_PROJECTS_ID), nullable=False)
-    analysis_version_id: Mapped[str] = mapped_column(ForeignKey("analysis_versions.id"), nullable=False)
+    analysis_version_id: Mapped[str] = mapped_column(ForeignKey(FK_ANALYSIS_VERSIONS_ID), nullable=False)
     bdd_scenario_id: Mapped[str] = mapped_column(ForeignKey("bdd_scenarios.id"), nullable=False)
     step_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     keyword: Mapped[str] = mapped_column(String(32), nullable=False)
@@ -378,13 +381,13 @@ class BddStepLink(Base, TimestampMixin):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
     project_id: Mapped[str] = mapped_column(ForeignKey(FK_PROJECTS_ID), nullable=False)
-    analysis_version_id: Mapped[str] = mapped_column(ForeignKey("analysis_versions.id"), nullable=False)
+    analysis_version_id: Mapped[str] = mapped_column(ForeignKey(FK_ANALYSIS_VERSIONS_ID), nullable=False)
     bdd_step_id: Mapped[str] = mapped_column(ForeignKey("bdd_steps.id"), nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default=BddStepLinkStatus.UNDEFINED.value)
     definition_path: Mapped[str | None] = mapped_column(String(1024))
     definition_name: Mapped[str | None] = mapped_column(String(512))
     definition_start_line: Mapped[int | None] = mapped_column(Integer)
-    graph_node_id: Mapped[str | None] = mapped_column(ForeignKey("graph_nodes.id"))
+    graph_node_id: Mapped[str | None] = mapped_column(ForeignKey(FK_GRAPH_NODES_ID))
     confidence: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
     provider_key: Mapped[str] = mapped_column(String(64), default="step_linker", nullable=False)
     candidates_json: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
@@ -401,7 +404,7 @@ class ClaimCluster(Base, TimestampMixin):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
     project_id: Mapped[str] = mapped_column(ForeignKey(FK_PROJECTS_ID), nullable=False)
-    analysis_version_id: Mapped[str] = mapped_column(ForeignKey("analysis_versions.id"), nullable=False)
+    analysis_version_id: Mapped[str] = mapped_column(ForeignKey(FK_ANALYSIS_VERSIONS_ID), nullable=False)
     canonical_key: Mapped[str] = mapped_column(String(512), nullable=False)
     label: Mapped[str] = mapped_column(String(512), nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default=ClaimClusterStatus.CANDIDATE.value)
@@ -431,9 +434,9 @@ class ClaimClusterMembership(Base, TimestampMixin):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
     project_id: Mapped[str] = mapped_column(ForeignKey(FK_PROJECTS_ID), nullable=False)
-    analysis_version_id: Mapped[str] = mapped_column(ForeignKey("analysis_versions.id"), nullable=False)
+    analysis_version_id: Mapped[str] = mapped_column(ForeignKey(FK_ANALYSIS_VERSIONS_ID), nullable=False)
     claim_cluster_id: Mapped[str] = mapped_column(ForeignKey("claim_clusters.id"), nullable=False)
-    source_claim_id: Mapped[str] = mapped_column(ForeignKey("source_claims.id"), nullable=False)
+    source_claim_id: Mapped[str] = mapped_column(ForeignKey(FK_SOURCE_CLAIMS_ID), nullable=False)
     join_reason: Mapped[str] = mapped_column(Text, nullable=False)
     join_signals_json: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
     join_score: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
@@ -451,8 +454,8 @@ class ClaimEmbedding(Base, TimestampMixin):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
     project_id: Mapped[str] = mapped_column(ForeignKey(FK_PROJECTS_ID), nullable=False)
-    analysis_version_id: Mapped[str] = mapped_column(ForeignKey("analysis_versions.id"), nullable=False)
-    source_claim_id: Mapped[str | None] = mapped_column(ForeignKey("source_claims.id"))
+    analysis_version_id: Mapped[str] = mapped_column(ForeignKey(FK_ANALYSIS_VERSIONS_ID), nullable=False)
+    source_claim_id: Mapped[str | None] = mapped_column(ForeignKey(FK_SOURCE_CLAIMS_ID))
     content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     model_key: Mapped[str] = mapped_column(String(64), nullable=False)
     model_version: Mapped[str] = mapped_column(String(64), nullable=False)

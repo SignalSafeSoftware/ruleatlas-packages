@@ -8,11 +8,19 @@ from typing import Any
 
 from ruleatlas_persistence.models import SourceClaim
 
-_THRESHOLD_RE = re.compile(
-    r"(?:\$\s*)?(\d[\d,]*(?:\.\d+)?)\s*(?:usd|dollars?)?|(?:threshold\s*(?:of|=|:)?\s*)(\d[\d,]*)",
-    re.IGNORECASE,
+_THRESHOLD_PATTERNS = (
+    re.compile(r"\$[ \t]*(\d{1,12}(?:,\d{3}){0,4}(?:\.\d{1,4})?)"),
+    re.compile(r"(\d{1,12}(?:,\d{3}){0,4}(?:\.\d{1,4})?)[ \t]*(?:usd|dollars|dollar)\b", re.IGNORECASE),
+    re.compile(r"threshold[ \t]+of[ \t]+(\d{1,12})", re.IGNORECASE),
+    re.compile(r"threshold[ \t]*[=:][ \t]*(\d{1,12})", re.IGNORECASE),
+    re.compile(r"(\d{1,12}(?:,\d{3}){0,4}(?:\.\d{1,4})?)"),
 )
-_DAYS_RE = re.compile(r"(\d+)\s*-?\s*days?", re.IGNORECASE)
+_DAY_PATTERNS = (
+    re.compile(r"(\d{1,6})[ \t]+-[ \t]+days?\b", re.IGNORECASE),
+    re.compile(r"(\d{1,6})-days?\b", re.IGNORECASE),
+    re.compile(r"(\d{1,6})[ \t]+days?\b", re.IGNORECASE),
+    re.compile(r"(\d{1,6})days?\b", re.IGNORECASE),
+)
 _OUTDATED_MARKERS = (
     "outdated",
     "legacy",
@@ -95,25 +103,53 @@ def _action_family(action: str | None, claim_text: str | None = None, subject: s
     return tokens[0] if tokens else ""
 
 
+def _leftmost_threshold_match(text: str) -> re.Match[str] | None:
+    matches: list[re.Match[str]] = []
+    for pattern in _THRESHOLD_PATTERNS:
+        match = pattern.search(text)
+        if match:
+            matches.append(match)
+    if not matches:
+        return None
+    return min(matches, key=lambda item: item.start())
+
+
+def _days_match(text: str) -> re.Match[str] | None:
+    matches: list[re.Match[str]] = []
+    for pattern in _DAY_PATTERNS:
+        match = pattern.search(text)
+        if match:
+            matches.append(match)
+    if not matches:
+        return None
+    return min(matches, key=lambda item: item.start())
+
+
+def _is_day_only_duration(text: str) -> bool:
+    return bool(_days_match(text)) and re.search(r"threshold|\$|usd|dollar", text, re.I) is None
+
+
+def _raw_threshold_value(text: str, match: re.Match[str]) -> str | None:
+    raw = next((group for group in match.groups() if group), None)
+    if not raw:
+        return None
+    days = _days_match(text)
+    if days and raw == days.group(1) and "threshold" not in text.lower():
+        return None
+    return raw.replace(",", "")
+
+
 def _extract_threshold(*texts: str | None) -> str | None:
     """Prefer money/threshold amounts; avoid capturing day counts as thresholds."""
     for text in texts:
-        if not text:
+        if not text or _is_day_only_duration(text):
             continue
-        # Skip pure day-duration phrases
-        if _DAYS_RE.search(text) and "threshold" not in text.lower() and "$" not in text and "usd" not in text.lower():
-            # Still allow explicit threshold language alongside days
-            if not re.search(r"threshold|\$|usd|dollar", text, re.I):
-                continue
-        match = _THRESHOLD_RE.search(text)
-        if match:
-            raw = match.group(1) or match.group(2)
-            if raw:
-                # Ignore small integers that are day counts already captured as timing
-                days = _DAYS_RE.search(text)
-                if days and raw == days.group(1) and "threshold" not in text.lower():
-                    continue
-                return raw.replace(",", "")
+        match = _leftmost_threshold_match(text)
+        if match is None:
+            continue
+        raw = _raw_threshold_value(text, match)
+        if raw:
+            return raw
     return None
 
 
@@ -121,7 +157,7 @@ def _extract_timing(*texts: str | None) -> str | None:
     for text in texts:
         if not text:
             continue
-        match = _DAYS_RE.search(text)
+        match = _days_match(text)
         if match:
             return f"{match.group(1)}_days"
     return None
@@ -236,7 +272,7 @@ def looks_implementation_detail(claim: SourceClaim) -> bool:
     return any(m in blob for m in _IMPL_DETAIL_MARKERS)
 
 
-def looks_exception_claim(claim: SourceClaim, semantics: StructuredSemantics) -> bool:
+def looks_exception_claim(claim: SourceClaim) -> bool:
     if claim.exception_text:
         return True
     blob = (claim.claim_text or "").lower()

@@ -109,7 +109,9 @@ def test_orientation_and_target_selection_are_bounded_and_deterministic() -> Non
     selection = AstTargetSelection(selected=(target,))
 
     assert orientation.to_dict()["languages"] == ["python"]
-    assert selection.to_dict() == selection.to_dict()
+    selected_payload = selection.to_dict()
+    assert selected_payload["selected"][0]["target_id"] == "document-1"
+    assert selected_payload == selection.to_dict()
     with pytest.raises(ValueError, match="both selected and rejected"):
         AstTargetSelection(
             selected=(target,),
@@ -164,23 +166,27 @@ def test_tool_result_envelope_correlates_request_tool_trace_and_error() -> None:
     )
 
     assert envelope.to_dict()["tool"] == "find_ast_nodes"
+    mismatched_trace = _trace()
+    mismatched_budget = _budget()
     with pytest.raises(ValueError, match="tool must match"):
         AstToolResultEnvelope(
             request_id="request-1",
             tool=AstInvestigationTool.GET_NODE,
             status=AstMcpOutcomeStatus.COMPLETE,
             payload={},
-            trace=_trace(),
-            budget=_budget(),
+            trace=mismatched_trace,
+            budget=mismatched_budget,
         )
+    failed_trace = _trace(error_code=AstMcpToolErrorCode.INTERNAL)
+    failed_budget = _budget()
     with pytest.raises(ValueError, match="failed tool results require"):
         AstToolResultEnvelope(
             request_id="request-1",
             tool=AstInvestigationTool.FIND_NODES,
             status=AstMcpOutcomeStatus.FAILED,
             payload=None,
-            trace=_trace(error_code=AstMcpToolErrorCode.INTERNAL),
-            budget=_budget(),
+            trace=failed_trace,
+            budget=failed_budget,
         )
 
 
@@ -211,11 +217,12 @@ def test_continue_decision_requires_exactly_one_next_tool_request() -> None:
     )
 
     assert decision.to_dict()["next_tool_request"] == _request().to_dict()
+    continue_budget = _budget()
     with pytest.raises(ValueError, match="require next_tool_request"):
         AstInvestigationDecision(
             decision=AstInvestigationDecisionKind.CONTINUE,
             explanation="Continue.",
-            budget=_budget(),
+            budget=continue_budget,
         )
 
 
@@ -229,11 +236,12 @@ def test_propose_rule_decision_is_terminal_but_not_yet_a_proposal() -> None:
     )
 
     assert decision.to_dict()["decision"] == "propose_rule"
+    propose_budget = _budget()
     with pytest.raises(ValueError, match="require proposal_summary"):
         AstInvestigationDecision(
             decision=AstInvestigationDecisionKind.PROPOSE_RULE,
             explanation="Propose.",
-            budget=_budget(),
+            budget=propose_budget,
             stop_reason=AstInvestigationStopReason.RULE_PROPOSED,
         )
 
@@ -254,12 +262,13 @@ def test_no_rule_result_distinguishes_conclusion_from_insufficient_evidence() ->
     )
 
     assert decision.to_dict()["no_rule"] == conclusive.to_dict()
+    insufficient_citations = (_citation(),)
     with pytest.raises(ValueError, match="cannot be conclusive"):
         AstNoRuleResult(
             reason=AstNoRuleReason.INSUFFICIENT_EVIDENCE,
             explanation="The investigation ended early.",
             conclusive=True,
-            citations=(_citation(),),
+            citations=insufficient_citations,
         )
     with pytest.raises(ValueError, match="require uncertainty"):
         AstNoRuleResult(
@@ -278,9 +287,10 @@ def test_stop_decision_uses_explicit_reason() -> None:
     )
 
     assert decision.to_dict()["stop_reason"] == "budget_exhausted"
+    stop_budget = _budget()
     with pytest.raises(ValueError, match="terminal decisions require"):
         AstInvestigationDecision(
             decision=AstInvestigationDecisionKind.STOP,
             explanation="Stop.",
-            budget=_budget(),
+            budget=stop_budget,
         )

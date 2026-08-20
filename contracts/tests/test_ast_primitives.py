@@ -86,10 +86,14 @@ def test_ast_source_range_round_trips() -> None:
 
 
 def test_ast_source_range_rejects_reversed_bytes_or_points() -> None:
+    reversed_bytes_start = AstPoint(0, 0)
+    reversed_bytes_end = AstPoint(0, 1)
     with pytest.raises(ValueError, match="end_byte"):
-        AstSourceRange(4, 3, AstPoint(0, 0), AstPoint(0, 1))
+        AstSourceRange(4, 3, reversed_bytes_start, reversed_bytes_end)
+    reversed_points_start = AstPoint(2, 0)
+    reversed_points_end = AstPoint(1, 0)
     with pytest.raises(ValueError, match="end_point"):
-        AstSourceRange(0, 1, AstPoint(2, 0), AstPoint(1, 0))
+        AstSourceRange(0, 1, reversed_points_start, reversed_points_end)
 
 
 def test_ast_node_flags_round_trip_and_validate_types() -> None:

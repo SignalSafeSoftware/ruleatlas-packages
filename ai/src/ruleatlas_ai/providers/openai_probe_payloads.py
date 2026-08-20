@@ -57,9 +57,7 @@ def unknown_capability_probe() -> dict[str, str]:
     }
 
 
-def validate_structured_probe_schema(schema: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Validate the probe schema locally before calling OpenAI."""
-    candidate = dict(schema or STRUCTURED_PROBE_SCHEMA)
+def _require_status_schema(candidate: dict[str, Any]) -> None:
     if candidate.get("type") != "object":
         raise ValueError("Probe schema type must be object")
     if candidate.get("additionalProperties") is not False:
@@ -76,17 +74,24 @@ def validate_structured_probe_schema(schema: dict[str, Any] | None = None) -> di
     if status.get("enum") != ["ok"]:
         raise ValueError("Probe schema status enum must be ['ok']")
 
-    def _walk(node: Any) -> None:
-        if isinstance(node, dict):
-            for key, value in node.items():
-                if key in _UNSUPPORTED_SCHEMA_KEYWORDS:
-                    raise ValueError(f"Unsupported JSON Schema keyword for strict probe: {key}")
-                _walk(value)
-        elif isinstance(node, list):
-            for item in node:
-                _walk(item)
 
-    _walk(candidate)
+def _reject_unsupported_schema_keywords(node: Any) -> None:
+    if isinstance(node, dict):
+        for key, value in node.items():
+            if key in _UNSUPPORTED_SCHEMA_KEYWORDS:
+                raise ValueError(f"Unsupported JSON Schema keyword for strict probe: {key}")
+            _reject_unsupported_schema_keywords(value)
+        return
+    if isinstance(node, list):
+        for item in node:
+            _reject_unsupported_schema_keywords(item)
+
+
+def validate_structured_probe_schema(schema: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Validate the probe schema locally before calling OpenAI."""
+    candidate = dict(schema or STRUCTURED_PROBE_SCHEMA)
+    _require_status_schema(candidate)
+    _reject_unsupported_schema_keywords(candidate)
     return candidate
 
 

@@ -224,40 +224,39 @@ def test_legacy_proposal_requires_explicit_evidence_to_migrate() -> None:
     assert migrated.canonical_rule_text == legacy["canonical_wording"]
     assert migrated.ast_citations == [_node_citation()]
 
+    missing_ast_context = LegacyProposalMigrationContext(
+        observed_behavior=context.observed_behavior,
+        product_intent_status=context.product_intent_status,
+        inferred_product_intent=context.inferred_product_intent,
+        ast_citations=(),
+        supporting_evidence_citations=context.supporting_evidence_citations,
+        provider_key=context.provider_key,
+        model_id=context.model_id,
+        provider_schema_version=context.provider_schema_version,
+        prompt_schema_version=context.prompt_schema_version,
+        confidence=context.confidence,
+        uncertainty=context.uncertainty,
+    )
     with pytest.raises(ValidationError):
-        migrate_legacy_proposal(
-            legacy,
-            context=LegacyProposalMigrationContext(
-                observed_behavior=context.observed_behavior,
-                product_intent_status=context.product_intent_status,
-                inferred_product_intent=context.inferred_product_intent,
-                ast_citations=(),
-                supporting_evidence_citations=context.supporting_evidence_citations,
-                provider_key=context.provider_key,
-                model_id=context.model_id,
-                provider_schema_version=context.provider_schema_version,
-                prompt_schema_version=context.prompt_schema_version,
-                confidence=context.confidence,
-                uncertainty=context.uncertainty,
-            ),
-        )
+        migrate_legacy_proposal(legacy, context=missing_ast_context)
 
 
 def test_invalid_legacy_proposal_cannot_be_migrated() -> None:
+    invalid_context = LegacyProposalMigrationContext(
+        observed_behavior="Observed behavior is available.",
+        product_intent_status=ProductIntentStatus.NOT_ESTABLISHED,
+        ast_citations=(_node_citation(),),
+        supporting_evidence_citations=(_evidence_citation(),),
+        provider_key="openai",
+        model_id="example-model",
+        provider_schema_version="responses-v1",
+        prompt_schema_version="ast-rule-v1",
+        confidence=1.0,
+    )
     with pytest.raises(ValueError, match="invalid legacy proposal"):
         migrate_legacy_proposal(
             {"schema_version": AI_RULE_SCHEMA_VERSION},
-            context=LegacyProposalMigrationContext(
-                observed_behavior="Observed behavior is available.",
-                product_intent_status=ProductIntentStatus.NOT_ESTABLISHED,
-                ast_citations=(_node_citation(),),
-                supporting_evidence_citations=(_evidence_citation(),),
-                provider_key="openai",
-                model_id="example-model",
-                provider_schema_version="responses-v1",
-                prompt_schema_version="ast-rule-v1",
-                confidence=1.0,
-            ),
+            context=invalid_context,
         )
 
 
@@ -298,8 +297,6 @@ def test_claims_adapter_only_emits_input_after_pure_validation() -> None:
 
     invalid_evidence = _evidence_citation().model_copy(update={"supports_fields": [AstRuleField.OBSERVED_BEHAVIOR]})
     invalid = proposal.model_copy(update={"supporting_evidence_citations": [invalid_evidence]})
+    expected_scope = AstCitationScope("project-1", "analysis-1")
     with pytest.raises(ValueError, match="failed citation validation"):
-        prepare_validated_ast_proposal_input(
-            invalid,
-            expected_scope=AstCitationScope("project-1", "analysis-1"),
-        )
+        prepare_validated_ast_proposal_input(invalid, expected_scope=expected_scope)

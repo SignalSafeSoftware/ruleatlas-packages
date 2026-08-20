@@ -127,7 +127,7 @@ def decode_ast_payload(
         raise ValueError("AST payload checksum does not match stored metadata")
     try:
         document = json.loads(uncompressed.decode("utf-8"), parse_constant=_reject_json_constant)
-    except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
+    except ValueError as exc:
         raise ValueError("AST payload is not valid canonical JSON") from exc
     if not isinstance(document, dict):
         raise ValueError("AST payload root must be an object")
@@ -220,15 +220,38 @@ def _validate_tree(
         if document_key is None:
             raise ValueError("empty AST payloads require document_key")
         return (), _require_string(document_key, "document_key"), None
+    validated_document_key = _require_single_document_key(records, document_key)
+    by_key = _require_unique_node_keys(records)
+    root = _require_valid_parent_links(records, by_key)
+    _require_connected_acyclic_tree(records, by_key, root.node_key)
+    return tuple(sorted(records, key=lambda record: record.node_key)), validated_document_key, root.node_key
+
+
+def _require_single_document_key(
+    records: list[AstNodeRecord] | tuple[AstNodeRecord, ...],
+    document_key: str | None,
+) -> str:
     document_keys = {record.document_key for record in records}
     if len(document_keys) != 1:
         raise ValueError("every AST payload node must use the same document_key")
     if document_key is not None and document_key not in document_keys:
         raise ValueError("AST payload nodes do not match document_key")
+    return next(iter(document_keys))
+
+
+def _require_unique_node_keys(
+    records: list[AstNodeRecord] | tuple[AstNodeRecord, ...],
+) -> dict[str, AstNodeRecord]:
     keys = [record.node_key for record in records]
     if len(set(keys)) != len(keys):
         raise ValueError("AST payload node_key values must be unique")
-    by_key = {record.node_key: record for record in records}
+    return {record.node_key: record for record in records}
+
+
+def _require_valid_parent_links(
+    records: list[AstNodeRecord] | tuple[AstNodeRecord, ...],
+    by_key: dict[str, AstNodeRecord],
+) -> AstNodeRecord:
     roots = [record for record in records if record.parent_node_key is None]
     if len(roots) != 1:
         raise ValueError("AST payload must contain exactly one root")
@@ -240,12 +263,20 @@ def _validate_tree(
         if position in sibling_positions:
             raise ValueError("AST payload sibling ordinals must be unique per parent")
         sibling_positions.add(position)
+    return roots[0]
+
+
+def _require_connected_acyclic_tree(
+    records: list[AstNodeRecord] | tuple[AstNodeRecord, ...],
+    by_key: dict[str, AstNodeRecord],
+    root_key: str,
+) -> None:
     children_by_parent: dict[str, list[str]] = {}
     for record in records:
         if record.parent_node_key is not None:
             children_by_parent.setdefault(record.parent_node_key, []).append(record.node_key)
     visited: set[str] = set()
-    frontier = [roots[0].node_key]
+    frontier = [root_key]
     while frontier:
         node_key = frontier.pop()
         if node_key in visited:
@@ -255,7 +286,6 @@ def _validate_tree(
     if len(visited) != len(records):
         unresolved = ", ".join(sorted(set(by_key) - visited)[:3])
         raise ValueError(f"AST payload node tree has a cycle or missing key: {unresolved}")
-    return tuple(sorted(records, key=lambda record: record.node_key)), next(iter(document_keys)), roots[0].node_key
 
 
 def _require_string(value: object, field_name: str) -> str:

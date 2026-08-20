@@ -103,63 +103,86 @@ def unsupported_grounding_terms(canonical_wording: str, source_texts: list[str])
     )
 
 
-def validate_rule_proposal(
-    session: Session,
+def _claim_in_scope(
+    repositories: RepositoryFactory,
+    claim_id: str,
     *,
     project_id: str,
     analysis_version_id: str,
-    payload: dict,
-) -> ValidationResult:
-    proposal, schema_errors = validate_proposal_payload(payload)
-    if proposal is None:
-        return ValidationResult(valid=False, errors=schema_errors)
+) -> SourceClaim | None:
+    return repositories.source_claims_structured().get_for_analysis(
+        claim_id,
+        project_id,
+        analysis_version_id,
+    )
 
-    errors: list[str] = []
-    warnings: list[str] = []
-    repositories = RepositoryFactory(session)
 
-    def _claim_in_scope(claim_id: str) -> SourceClaim | None:
-        return repositories.source_claims_structured().get_for_analysis(
-            claim_id,
-            project_id,
-            analysis_version_id,
-        )
-
+def _collect_supporting_claims(
+    proposal: AiRuleProposal,
+    repositories: RepositoryFactory,
+    *,
+    project_id: str,
+    analysis_version_id: str,
+    errors: list[str],
+) -> list[SourceClaim]:
     supporting_claims: list[SourceClaim] = []
     for claim_id in proposal.supporting_claim_ids + proposal.contradicting_claim_ids:
-        row = _claim_in_scope(claim_id)
+        row = _claim_in_scope(
+            repositories,
+            claim_id,
+            project_id=project_id,
+            analysis_version_id=analysis_version_id,
+        )
         if row is None:
             errors.append(f"Invented or cross-analysis claim citation: {claim_id}")
         elif claim_id in proposal.supporting_claim_ids:
             supporting_claims.append(row)
+    return supporting_claims
 
+
+def _collect_supporting_evidence(
+    proposal: AiRuleProposal,
+    repositories: RepositoryFactory,
+    *,
+    project_id: str,
+    analysis_version_id: str,
+    errors: list[str],
+) -> list:
     supporting_evidence = []
     for evidence_id in proposal.supporting_evidence_ids:
         ev = repositories.source_claim_evidence().get_by_id(evidence_id)
         if ev is None:
             errors.append(f"Invented evidence citation: {evidence_id}")
             continue
-        parent = _claim_in_scope(ev.source_claim_id)
+        parent = _claim_in_scope(
+            repositories,
+            ev.source_claim_id,
+            project_id=project_id,
+            analysis_version_id=analysis_version_id,
+        )
         if parent is None:
             errors.append(f"Evidence {evidence_id} outside analysis scope")
         else:
             supporting_evidence.append(ev)
         if ev.start_line is not None and ev.end_line is not None and ev.end_line < ev.start_line:
             errors.append(f"Invalid line range on evidence {evidence_id}")
+    return supporting_evidence
 
-    roles = set()
-    for claim_id in proposal.supporting_claim_ids:
-        row = _claim_in_scope(claim_id)
-        if row:
-            roles.add(row.claim_role)
+
+def _role_warnings(supporting_claims: list[SourceClaim]) -> list[str]:
+    warnings: list[str] = []
+    roles = {row.claim_role for row in supporting_claims}
     if "implementation" not in roles:
         warnings.append("Missing implementation-role supporting claim")
     if "verification" not in roles and "product_intent" not in roles:
         warnings.append("Missing verification or product-intent supporting claim")
+    return warnings
 
+
+def _source_texts_for_grounding(claims: list[SourceClaim], evidence: list) -> list[str]:
     source_texts = [
         value
-        for claim in supporting_claims
+        for claim in claims
         for value in (
             claim.claim_text,
             claim.actor,
@@ -172,18 +195,54 @@ def validate_rule_proposal(
         )
         if value
     ]
-    source_texts.extend(ev.excerpt for ev in supporting_evidence if ev.excerpt)
-    unsupported = unsupported_grounding_terms(proposal.canonical_wording, source_texts)
-    proposal_terms = _grounding_tokens(proposal.canonical_wording)
-    if (
-        len(unsupported) >= 2
-        and proposal_terms
-        and len(unsupported) / len(proposal_terms) > 0.35
-    ):
-        errors.append(
-            "Canonical wording introduces unsupported material terms: "
-            + ", ".join(unsupported[:12])
+    source_texts.extend(ev.excerpt for ev in evidence if ev.excerpt)
+    return source_texts
+
+
+def _grounding_errors(canonical_wording: str, source_texts: list[str]) -> list[str]:
+    unsupported = unsupported_grounding_terms(canonical_wording, source_texts)
+    proposal_terms = _grounding_tokens(canonical_wording)
+    if len(unsupported) >= 2 and proposal_terms and len(unsupported) / len(proposal_terms) > 0.35:
+        return [
+            "Canonical wording introduces unsupported material terms: " + ", ".join(unsupported[:12])
+        ]
+    return []
+
+
+def validate_rule_proposal(
+    session: Session,
+    *,
+    project_id: str,
+    analysis_version_id: str,
+    payload: dict,
+) -> ValidationResult:
+    proposal, schema_errors = validate_proposal_payload(payload)
+    if proposal is None:
+        return ValidationResult(valid=False, errors=schema_errors)
+
+    errors: list[str] = []
+    repositories = RepositoryFactory(session)
+    supporting_claims = _collect_supporting_claims(
+        proposal,
+        repositories,
+        project_id=project_id,
+        analysis_version_id=analysis_version_id,
+        errors=errors,
+    )
+    supporting_evidence = _collect_supporting_evidence(
+        proposal,
+        repositories,
+        project_id=project_id,
+        analysis_version_id=analysis_version_id,
+        errors=errors,
+    )
+    warnings = _role_warnings(supporting_claims)
+    errors.extend(
+        _grounding_errors(
+            proposal.canonical_wording,
+            _source_texts_for_grounding(supporting_claims, supporting_evidence),
         )
+    )
 
     # Never approve/persist here
     return ValidationResult(

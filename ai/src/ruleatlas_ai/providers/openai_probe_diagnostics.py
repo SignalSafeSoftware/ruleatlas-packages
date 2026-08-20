@@ -103,6 +103,99 @@ def _explicit_unsupported(
     )
 
 
+def _infra_from_http_status(
+    *,
+    status_code: int,
+    latency_ms: int,
+    diagnostics: dict[str, Any],
+) -> CompatibilityTestResult | None:
+    unavailable = AIModelAvailabilityStatus.UNAVAILABLE_FOR_CONNECTION.value
+    if status_code == 401:
+        return _infra_unavailable(
+            category=AICompatibilityFailureCategory.CREDENTIAL_UNAVAILABLE.value,
+            detail="Credential unavailable or rejected by provider",
+            latency_ms=latency_ms,
+            diagnostics=diagnostics,
+        )
+    if status_code == 403:
+        return _infra_unavailable(
+            category=AICompatibilityFailureCategory.MODEL_ACCESS_DENIED.value,
+            detail="Organization connection may not have access to this model",
+            latency_ms=latency_ms,
+            diagnostics=diagnostics,
+            availability_status=unavailable,
+        )
+    if status_code == 404:
+        return _infra_unavailable(
+            category=AICompatibilityFailureCategory.MODEL_ACCESS_DENIED.value,
+            detail="Model unavailable for this organization connection",
+            latency_ms=latency_ms,
+            diagnostics=diagnostics,
+            availability_status=unavailable,
+        )
+    if status_code == 429:
+        return _infra_unavailable(
+            category=AICompatibilityFailureCategory.RATE_LIMITED.value,
+            detail="Provider rate limited the request",
+            latency_ms=latency_ms,
+            diagnostics=diagnostics,
+        )
+    if status_code >= 500:
+        return _infra_unavailable(
+            category=AICompatibilityFailureCategory.PROVIDER_UNAVAILABLE.value,
+            detail="Provider connection unavailable",
+            latency_ms=latency_ms,
+            diagnostics=diagnostics,
+        )
+    return None
+
+
+def _format_rejection_result(
+    *,
+    message: str,
+    code: str,
+    param: str,
+    latency_ms: int,
+    diagnostics: dict[str, Any],
+) -> CompatibilityTestResult | None:
+    format_related = any(
+        token in message or token in param
+        for token in (
+            "response_format",
+            "json_schema",
+            "text.format",
+            "text/format",
+            "structured output",
+            "structured_output",
+        )
+    )
+    unsupported_language = "unsupported" in code or any(
+        marker in message
+        for marker in (
+            "unsupported",
+            "not supported",
+            "unknown parameter",
+            "invalid parameter",
+            "does not support",
+        )
+    )
+    if not (unsupported_language and format_related):
+        return None
+    if "schema" in message or "json_schema" in message or "format" in param:
+        return _explicit_unsupported(
+            category=AICompatibilityFailureCategory.PROVIDER_REJECTED_SCHEMA.value,
+            detail="Provider rejected the structured-output schema or format",
+            latency_ms=latency_ms,
+            diagnostics=diagnostics,
+        )
+    return _explicit_unsupported(
+        category=AICompatibilityFailureCategory.UNSUPPORTED_RESPONSE_FORMAT.value,
+        detail="Provider explicitly rejected structured-output formatting",
+        latency_ms=latency_ms,
+        diagnostics=diagnostics,
+    )
+
+
 def _classify_http_error_body(
     *,
     status_code: int,
@@ -115,43 +208,13 @@ def _classify_http_error_body(
         "http_status": status_code,
         **sanitize_provider_error(body),
     }
-    if status_code == 401:
-        return _infra_unavailable(
-            category=AICompatibilityFailureCategory.CREDENTIAL_UNAVAILABLE.value,
-            detail="Credential unavailable or rejected by provider",
-            latency_ms=latency_ms,
-            diagnostics=diagnostics,
-        ), diagnostics
-    if status_code == 403:
-        return _infra_unavailable(
-            category=AICompatibilityFailureCategory.MODEL_ACCESS_DENIED.value,
-            detail="Organization connection may not have access to this model",
-            latency_ms=latency_ms,
-            diagnostics=diagnostics,
-            availability_status=AIModelAvailabilityStatus.UNAVAILABLE_FOR_CONNECTION.value,
-        ), diagnostics
-    if status_code == 404:
-        return _infra_unavailable(
-            category=AICompatibilityFailureCategory.MODEL_ACCESS_DENIED.value,
-            detail="Model unavailable for this organization connection",
-            latency_ms=latency_ms,
-            diagnostics=diagnostics,
-            availability_status=AIModelAvailabilityStatus.UNAVAILABLE_FOR_CONNECTION.value,
-        ), diagnostics
-    if status_code == 429:
-        return _infra_unavailable(
-            category=AICompatibilityFailureCategory.RATE_LIMITED.value,
-            detail="Provider rate limited the request",
-            latency_ms=latency_ms,
-            diagnostics=diagnostics,
-        ), diagnostics
-    if status_code >= 500:
-        return _infra_unavailable(
-            category=AICompatibilityFailureCategory.PROVIDER_UNAVAILABLE.value,
-            detail="Provider connection unavailable",
-            latency_ms=latency_ms,
-            diagnostics=diagnostics,
-        ), diagnostics
+    infra = _infra_from_http_status(
+        status_code=status_code,
+        latency_ms=latency_ms,
+        diagnostics=diagnostics,
+    )
+    if infra is not None:
+        return infra, diagnostics
 
     message = str(diagnostics.get("provider_error_summary") or "").lower()
     code = str(diagnostics.get("provider_error_code") or "").lower()
@@ -170,39 +233,13 @@ def _classify_http_error_body(
             },
         ), diagnostics
 
-    format_related = any(
-        token in message or token in param
-        for token in (
-            "response_format",
-            "json_schema",
-            "text.format",
-            "text/format",
-            "structured output",
-            "structured_output",
-        )
-    )
-    unsupported_language = any(
-        marker in message
-        for marker in (
-            "unsupported",
-            "not supported",
-            "unknown parameter",
-            "invalid parameter",
-            "does not support",
-        )
-    ) or "unsupported" in code
-    if unsupported_language and format_related:
-        if "schema" in message or "json_schema" in message or "format" in param:
-            return _explicit_unsupported(
-                category=AICompatibilityFailureCategory.PROVIDER_REJECTED_SCHEMA.value,
-                detail="Provider rejected the structured-output schema or format",
-                latency_ms=latency_ms,
-                diagnostics=diagnostics,
-            ), diagnostics
-        return _explicit_unsupported(
-            category=AICompatibilityFailureCategory.UNSUPPORTED_RESPONSE_FORMAT.value,
-            detail="Provider explicitly rejected structured-output formatting",
+    return (
+        _format_rejection_result(
+            message=message,
+            code=code,
+            param=param,
             latency_ms=latency_ms,
             diagnostics=diagnostics,
-        ), diagnostics
-    return None, diagnostics
+        ),
+        diagnostics,
+    )

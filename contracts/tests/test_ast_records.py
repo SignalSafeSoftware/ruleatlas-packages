@@ -125,6 +125,7 @@ def test_node_identifies_root_and_rejects_self_parent() -> None:
     )
     assert root.is_root
 
+    parent_flags = AstNodeFlags(is_named=True)
     with pytest.raises(ValueError, match="own parent"):
         AstNodeRecord(
             document_key="doc-1",
@@ -132,7 +133,7 @@ def test_node_identifies_root_and_rejects_self_parent() -> None:
             parent_node_key="node-1",
             raw_type="identifier",
             source_range=source_range,
-            flags=AstNodeFlags(is_named=True),
+            flags=parent_flags,
             sibling_ordinal=0,
         )
 

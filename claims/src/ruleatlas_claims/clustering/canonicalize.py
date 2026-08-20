@@ -450,7 +450,6 @@ def _attach_secondary_cluster(
             kind="contradiction",
         )
         result.contradiction_attachments += 1
-        return
 
 
 def _is_emittable(cluster: ClaimCluster, attrs: dict) -> bool:
