@@ -385,11 +385,11 @@ def _split_oversized(members: list[SourceClaim], cfg: ClusterConfig) -> list[lis
     while remaining:
         seed = remaining.pop(0)
         chunk = [seed]
-        scored = sorted(
-            remaining,
-            key=lambda c, seed=seed: lexical_similarity(seed.claim_text, c.claim_text),
-            reverse=True,
-        )
+
+        def _proximity(claim: SourceClaim, seed_claim: SourceClaim = seed) -> float:
+            return lexical_similarity(seed_claim.claim_text, claim.claim_text)
+
+        scored = sorted(remaining, key=_proximity, reverse=True)
         for c in scored:
             if len(chunk) >= cfg.max_size:
                 break
