@@ -33,7 +33,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: Test release tag script
-        run: python -m unittest scripts.test_verify_release_tag
+        run: python -m unittest scripts.test_verify_release_tag scripts.test_hash_local_wheels
       - name: Validate release tag
         id: tag
         run: python scripts/verify-release-tag.py "$GITHUB_REF_NAME" --github-output "$GITHUB_OUTPUT"
@@ -43,7 +43,8 @@ jobs:
           uv export --all-extras --frozen --group dev --no-emit-workspace -o requirements.txt
           uv pip install --python .venv/bin/python --require-hashes --no-build --no-deps -r requirements.txt
           uv build --all-packages --wheel --out-dir "${RUNNER_TEMP}/ra-wheels" .
-          uv pip install --python .venv/bin/python --no-build --no-deps "${RUNNER_TEMP}/ra-wheels"/*.whl
+          python scripts/hash_local_wheels.py "${RUNNER_TEMP}/ra-wheels" -o "${RUNNER_TEMP}/ra-wheels.txt"
+          uv pip install --python .venv/bin/python --require-hashes --no-build --no-deps -r "${RUNNER_TEMP}/ra-wheels.txt"
       - name: Enforce cross-package DAG
         run: .venv/bin/lint-imports --config .importlinter
       - name: Validate all packages
@@ -55,7 +56,8 @@ jobs:
               uv export --all-extras --frozen --no-emit-project --no-emit-workspace -o requirements.txt
               uv pip install --python .venv/bin/python --require-hashes --no-build --no-deps -r requirements.txt
               uv build --all-packages --wheel --out-dir "${RUNNER_TEMP}/ra-wheels-${package}" "${GITHUB_WORKSPACE}"
-              uv pip install --python .venv/bin/python --no-build --no-deps "${RUNNER_TEMP}/ra-wheels-${package}"/*.whl
+              python "${GITHUB_WORKSPACE}/scripts/hash_local_wheels.py" "${RUNNER_TEMP}/ra-wheels-${package}" -o "${RUNNER_TEMP}/ra-wheels-${package}.txt"
+              uv pip install --python .venv/bin/python --require-hashes --no-build --no-deps -r "${RUNNER_TEMP}/ra-wheels-${package}.txt"
               .venv/bin/ruff check src
               if grep -q '\[tool.mypy\]' pyproject.toml; then .venv/bin/mypy src; fi
               .venv/bin/python -m pytest -q
