@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from ._base import (
+    FK_AI_MODEL_CATALOG_ENTRIES_ID,
+    FK_AI_PROVIDER_CONNECTIONS_ID,
     FK_ORGANIZATIONS_ID,
     FK_PROJECTS_ID,
     FK_SCAN_RUNS_ID,
@@ -179,7 +181,7 @@ class AiModelCatalogEntry(Base, TimestampMixin):
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
-    connection_id: Mapped[str] = mapped_column(ForeignKey("ai_provider_connections.id"), nullable=False)
+    connection_id: Mapped[str] = mapped_column(ForeignKey(FK_AI_PROVIDER_CONNECTIONS_ID), nullable=False)
     organization_id: Mapped[str] = mapped_column(ForeignKey(FK_ORGANIZATIONS_ID), nullable=False)
     provider_type: Mapped[str] = mapped_column(String(64), nullable=False)
     provider_model_id: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -216,8 +218,8 @@ class AiModelCompatibilityTest(Base, TimestampMixin):
     __table_args__ = (Index("ix_ai_model_compat_tests_catalog", "catalog_entry_id", "tested_at"),)
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
-    catalog_entry_id: Mapped[str] = mapped_column(ForeignKey("ai_model_catalog_entries.id"), nullable=False)
-    connection_id: Mapped[str] = mapped_column(ForeignKey("ai_provider_connections.id"), nullable=False)
+    catalog_entry_id: Mapped[str] = mapped_column(ForeignKey(FK_AI_MODEL_CATALOG_ENTRIES_ID), nullable=False)
+    connection_id: Mapped[str] = mapped_column(ForeignKey(FK_AI_PROVIDER_CONNECTIONS_ID), nullable=False)
     organization_id: Mapped[str] = mapped_column(ForeignKey(FK_ORGANIZATIONS_ID), nullable=False)
     provider_type: Mapped[str] = mapped_column(String(64), nullable=False)
     provider_model_id: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -242,11 +244,11 @@ class ProjectAiConfiguration(Base, TimestampMixin):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
     project_id: Mapped[str] = mapped_column(ForeignKey(FK_PROJECTS_ID), nullable=False)
-    connection_id: Mapped[str | None] = mapped_column(ForeignKey("ai_provider_connections.id"))
-    synthesis_model_id: Mapped[str | None] = mapped_column(ForeignKey("ai_model_catalog_entries.id"))
-    embedding_model_id: Mapped[str | None] = mapped_column(ForeignKey("ai_model_catalog_entries.id"))
-    fallback_connection_id: Mapped[str | None] = mapped_column(ForeignKey("ai_provider_connections.id"))
-    fallback_model_id: Mapped[str | None] = mapped_column(ForeignKey("ai_model_catalog_entries.id"))
+    connection_id: Mapped[str | None] = mapped_column(ForeignKey(FK_AI_PROVIDER_CONNECTIONS_ID))
+    synthesis_model_id: Mapped[str | None] = mapped_column(ForeignKey(FK_AI_MODEL_CATALOG_ENTRIES_ID))
+    embedding_model_id: Mapped[str | None] = mapped_column(ForeignKey(FK_AI_MODEL_CATALOG_ENTRIES_ID))
+    fallback_connection_id: Mapped[str | None] = mapped_column(ForeignKey(FK_AI_PROVIDER_CONNECTIONS_ID))
+    fallback_model_id: Mapped[str | None] = mapped_column(ForeignKey(FK_AI_MODEL_CATALOG_ENTRIES_ID))
     fallback_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     synthesis_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     allow_deterministic_fallback: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)

@@ -137,9 +137,10 @@ class NormalizedAstProposal:
 
     @property
     def claims(self) -> tuple[NormalizedAstClaim, ...]:
-        if self.product_intent_claim is None:
-            return (self.implementation_claim,)
-        return (self.implementation_claim, self.product_intent_claim)
+        claims = [self.implementation_claim]
+        if self.product_intent_claim is not None:
+            claims.append(self.product_intent_claim)
+        return tuple(claims)
 
 
 def normalize_validated_ast_proposal(

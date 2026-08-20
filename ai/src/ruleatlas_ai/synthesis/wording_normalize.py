@@ -31,14 +31,17 @@ def _modality(text: str) -> str:
     return "must"
 
 
-def normalize_canonical_wording(
+def _coerce_semantics(
     proposal: AiRuleProposal,
-    semantics: StructuredSemantics | dict | None = None,
-) -> AiRuleProposal:
-    """Prefer a stable shape; never drop numbers, actors, exceptions, or timing."""
+    semantics: StructuredSemantics | dict | None,
+) -> StructuredSemantics:
     if isinstance(semantics, dict):
-        semantics = StructuredSemantics(**{k: semantics.get(k) for k in StructuredSemantics.__dataclass_fields__})
-    semantics = semantics or StructuredSemantics(
+        return StructuredSemantics(
+            **{k: semantics.get(k) for k in StructuredSemantics.__dataclass_fields__}
+        )
+    if semantics is not None:
+        return semantics
+    return StructuredSemantics(
         actor=proposal.actor,
         action=proposal.action,
         condition=proposal.condition,
@@ -49,27 +52,34 @@ def normalize_canonical_wording(
         object=getattr(proposal, "object", None),
     )
 
-    family = (semantics.action_family or "").lower()
-    threshold = semantics.threshold
-    timing = semantics.timing
-    wording = (proposal.canonical_wording or "").strip()
 
-    # Apply golden preferred strings when fields match (near-equivalent mapping).
-    golden_key = (family, threshold if family == "approve" else (timing if family == "expire" else None))
+def _golden_key(family: str, threshold: str | None, timing: str | None) -> tuple[str, str | None]:
+    if family == "approve":
+        return (family, threshold)
+    if family == "expire":
+        return (family, timing)
     if family == "delete":
-        golden_key = ("delete", None)
-    preferred = _GOLDEN.get(golden_key)
+        return ("delete", None)
+    return (family, None)
+
+
+def _apply_preferred_wording(
+    wording: str,
+    family: str,
+    preferred: str | None,
+    proposal: AiRuleProposal,
+    semantics: StructuredSemantics,
+) -> str:
+    if preferred and (
+        _preserves_facts(wording, semantics) or _draft_matches_domain(wording, family, semantics)
+    ):
+        return preferred
     if preferred:
-        # Only replace when draft already encodes the same facts (numbers/exceptions present).
-        if _preserves_facts(preferred, wording, semantics) or _draft_matches_domain(wording, family, semantics):
-            wording = preferred
-    else:
-        wording = _shape_wording(wording, proposal, semantics)
+        return wording
+    return _shape_wording(wording, proposal, semantics)
 
-    # Reject invented qualifiers: ensure numbers from semantics remain.
-    wording = _ensure_facts(wording, semantics, proposal)
 
-    proposal.canonical_wording = wording
+def _copy_semantic_fields(proposal: AiRuleProposal, semantics: StructuredSemantics) -> None:
     if semantics.threshold and not proposal.threshold:
         proposal.threshold = semantics.threshold
     if semantics.timing and not proposal.timing:
@@ -78,6 +88,20 @@ def normalize_canonical_wording(
         proposal.state = semantics.state
     if semantics.object and not proposal.object:
         proposal.object = semantics.object
+
+
+def normalize_canonical_wording(
+    proposal: AiRuleProposal,
+    semantics: StructuredSemantics | dict | None = None,
+) -> AiRuleProposal:
+    """Prefer a stable shape; never drop numbers, actors, exceptions, or timing."""
+    semantics = _coerce_semantics(proposal, semantics)
+    family = (semantics.action_family or "").lower()
+    wording = (proposal.canonical_wording or "").strip()
+    preferred = _GOLDEN.get(_golden_key(family, semantics.threshold, semantics.timing))
+    wording = _apply_preferred_wording(wording, family, preferred, proposal, semantics)
+    proposal.canonical_wording = _ensure_facts(wording, semantics, proposal)
+    _copy_semantic_fields(proposal, semantics)
     return proposal
 
 
@@ -99,7 +123,7 @@ def _draft_matches_domain(wording: str, family: str, semantics: StructuredSemant
     return False
 
 
-def _preserves_facts(preferred: str, draft: str, semantics: StructuredSemantics) -> bool:
+def _preserves_facts(draft: str, semantics: StructuredSemantics) -> bool:
     return _draft_matches_domain(draft, semantics.action_family or "", semantics)
 
 

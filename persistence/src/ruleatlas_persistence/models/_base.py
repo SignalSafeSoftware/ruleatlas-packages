@@ -66,13 +66,29 @@ FK_USERS_ID = "users.id"
 FK_PROJECTS_ID = "projects.id"
 FK_SCAN_RUNS_ID = "scan_runs.id"
 FK_SOURCE_FILES_ID = "source_files.id"
+FK_ANALYSIS_VERSIONS_ID = "analysis_versions.id"
+FK_GRAPH_NODES_ID = "graph_nodes.id"
+FK_SOURCE_CLAIMS_ID = "source_claims.id"
+FK_AI_PROVIDER_CONNECTIONS_ID = "ai_provider_connections.id"
+FK_AI_MODEL_CATALOG_ENTRIES_ID = "ai_model_catalog_entries.id"
+FK_SCAN_CONFIGS_ID = "scan_configs.id"
+FK_RULES_ID = "rules.id"
+FK_TICKET_CONNECTIONS_ID = "ticket_connections.id"
 
 # Explicit __all__ so `from ._base import *` is visible to mypy.
 __all__ = [
+    "FK_AI_MODEL_CATALOG_ENTRIES_ID",
+    "FK_AI_PROVIDER_CONNECTIONS_ID",
+    "FK_ANALYSIS_VERSIONS_ID",
+    "FK_GRAPH_NODES_ID",
     "FK_ORGANIZATIONS_ID",
     "FK_PROJECTS_ID",
+    "FK_RULES_ID",
+    "FK_SCAN_CONFIGS_ID",
     "FK_SCAN_RUNS_ID",
+    "FK_SOURCE_CLAIMS_ID",
     "FK_SOURCE_FILES_ID",
+    "FK_TICKET_CONNECTIONS_ID",
     "FK_USERS_ID",
     "JSON",
     "STR_ENUM_COLUMN_KW",

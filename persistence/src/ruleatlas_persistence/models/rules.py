@@ -5,7 +5,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from ._base import (
+    FK_ANALYSIS_VERSIONS_ID,
     FK_PROJECTS_ID,
+    FK_RULES_ID,
     FK_SCAN_RUNS_ID,
     FK_SOURCE_FILES_ID,
     FK_USERS_ID,
@@ -60,7 +62,7 @@ class Rule(Base, TimestampMixin):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
     project_id: Mapped[str] = mapped_column(ForeignKey(FK_PROJECTS_ID), nullable=False)
-    analysis_version_id: Mapped[str | None] = mapped_column(ForeignKey("analysis_versions.id"))
+    analysis_version_id: Mapped[str | None] = mapped_column(ForeignKey(FK_ANALYSIS_VERSIONS_ID))
     stable_key: Mapped[str] = mapped_column(String(255), nullable=False)
     domain: Mapped[str | None] = mapped_column(String(128))
     name: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -76,7 +78,7 @@ class Rule(Base, TimestampMixin):
         Enum(RuleCategory, **STR_ENUM_COLUMN_KW), default=RuleCategory.UNKNOWN, nullable=False
     )
     workflow_group: Mapped[str | None] = mapped_column(String(128))
-    parent_rule_id: Mapped[str | None] = mapped_column(ForeignKey("rules.id"))
+    parent_rule_id: Mapped[str | None] = mapped_column(ForeignKey(FK_RULES_ID))
     last_scanned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     deprecated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     review_note: Mapped[str | None] = mapped_column(Text)
@@ -93,7 +95,7 @@ class RuleVersion(Base):
     __tablename__ = "rule_versions"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
-    rule_id: Mapped[str] = mapped_column(ForeignKey("rules.id"), nullable=False)
+    rule_id: Mapped[str] = mapped_column(ForeignKey(FK_RULES_ID), nullable=False)
     scan_run_id: Mapped[str | None] = mapped_column(ForeignKey(FK_SCAN_RUNS_ID))
     version_number: Mapped[int] = mapped_column(Integer, nullable=False)
     business_rule: Mapped[str] = mapped_column(Text, nullable=False)
@@ -112,7 +114,7 @@ class RuleEvidence(Base):
     __tablename__ = "rule_evidence"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
-    rule_id: Mapped[str] = mapped_column(ForeignKey("rules.id"), nullable=False)
+    rule_id: Mapped[str] = mapped_column(ForeignKey(FK_RULES_ID), nullable=False)
     rule_version_id: Mapped[str | None] = mapped_column(ForeignKey("rule_versions.id"))
     scan_run_id: Mapped[str | None] = mapped_column(ForeignKey(FK_SCAN_RUNS_ID))
     source_file_id: Mapped[str | None] = mapped_column(ForeignKey(FK_SOURCE_FILES_ID))
@@ -146,9 +148,9 @@ class RuleRelationship(Base, TimestampMixin):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
     project_id: Mapped[str] = mapped_column(ForeignKey(FK_PROJECTS_ID), nullable=False)
-    analysis_version_id: Mapped[str | None] = mapped_column(ForeignKey("analysis_versions.id"))
-    from_rule_id: Mapped[str] = mapped_column(ForeignKey("rules.id"), nullable=False)
-    to_rule_id: Mapped[str] = mapped_column(ForeignKey("rules.id"), nullable=False)
+    analysis_version_id: Mapped[str | None] = mapped_column(ForeignKey(FK_ANALYSIS_VERSIONS_ID))
+    from_rule_id: Mapped[str] = mapped_column(ForeignKey(FK_RULES_ID), nullable=False)
+    to_rule_id: Mapped[str] = mapped_column(ForeignKey(FK_RULES_ID), nullable=False)
     relationship_type: Mapped[RuleRelationshipType] = mapped_column(
         Enum(RuleRelationshipType, **STR_ENUM_COLUMN_KW), nullable=False
     )
@@ -171,9 +173,9 @@ class RuleRelationshipSuggestion(Base, TimestampMixin):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
     project_id: Mapped[str] = mapped_column(ForeignKey(FK_PROJECTS_ID), nullable=False)
-    analysis_version_id: Mapped[str | None] = mapped_column(ForeignKey("analysis_versions.id"))
-    source_rule_id: Mapped[str] = mapped_column(ForeignKey("rules.id"), nullable=False)
-    target_rule_id: Mapped[str] = mapped_column(ForeignKey("rules.id"), nullable=False)
+    analysis_version_id: Mapped[str | None] = mapped_column(ForeignKey(FK_ANALYSIS_VERSIONS_ID))
+    source_rule_id: Mapped[str] = mapped_column(ForeignKey(FK_RULES_ID), nullable=False)
+    target_rule_id: Mapped[str] = mapped_column(ForeignKey(FK_RULES_ID), nullable=False)
     suggested_relationship_type: Mapped[RuleRelationshipType] = mapped_column(
         Enum(RuleRelationshipType, **STR_ENUM_COLUMN_KW), nullable=False
     )
@@ -194,8 +196,8 @@ class RuleSourceClaim(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
     project_id: Mapped[str] = mapped_column(ForeignKey(FK_PROJECTS_ID), nullable=False)
-    analysis_version_id: Mapped[str | None] = mapped_column(ForeignKey("analysis_versions.id"))
-    rule_id: Mapped[str | None] = mapped_column(ForeignKey("rules.id"))
+    analysis_version_id: Mapped[str | None] = mapped_column(ForeignKey(FK_ANALYSIS_VERSIONS_ID))
+    rule_id: Mapped[str | None] = mapped_column(ForeignKey(FK_RULES_ID))
     scan_run_id: Mapped[str | None] = mapped_column(ForeignKey(FK_SCAN_RUNS_ID))
     source_type: Mapped[EvidenceSourceType] = mapped_column(
         Enum(EvidenceSourceType, **STR_ENUM_COLUMN_KW), nullable=False
@@ -212,8 +214,8 @@ class RuleConflict(Base, TimestampMixin):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
     project_id: Mapped[str] = mapped_column(ForeignKey(FK_PROJECTS_ID), nullable=False)
-    analysis_version_id: Mapped[str | None] = mapped_column(ForeignKey("analysis_versions.id"))
-    rule_id: Mapped[str | None] = mapped_column(ForeignKey("rules.id"))
+    analysis_version_id: Mapped[str | None] = mapped_column(ForeignKey(FK_ANALYSIS_VERSIONS_ID))
+    rule_id: Mapped[str | None] = mapped_column(ForeignKey(FK_RULES_ID))
     scan_run_id: Mapped[str | None] = mapped_column(ForeignKey(FK_SCAN_RUNS_ID))
     # RA-04-003: legacy column. For structured/semantic conflicts the authoritative kind lives elsewhere,
     # so this is nullable to let future v2 rows omit it instead of faking a sentinel. Today's writers still
@@ -241,7 +243,7 @@ class RuleDecision(Base):
     __tablename__ = "rule_decisions"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
-    rule_id: Mapped[str] = mapped_column(ForeignKey("rules.id"), nullable=False)
+    rule_id: Mapped[str] = mapped_column(ForeignKey(FK_RULES_ID), nullable=False)
     decided_by_user_id: Mapped[str | None] = mapped_column(ForeignKey(FK_USERS_ID))
     decision_type: Mapped[RuleDecisionType] = mapped_column(
         Enum(RuleDecisionType, **STR_ENUM_COLUMN_KW), nullable=False
@@ -254,7 +256,7 @@ class RuleReview(Base):
     __tablename__ = "rule_reviews"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
-    rule_id: Mapped[str] = mapped_column(ForeignKey("rules.id"), nullable=False)
+    rule_id: Mapped[str] = mapped_column(ForeignKey(FK_RULES_ID), nullable=False)
     reviewed_by_user_id: Mapped[str | None] = mapped_column(ForeignKey(FK_USERS_ID))
     status_before: Mapped[str] = mapped_column(String(64), nullable=False)
     status_after: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -267,8 +269,8 @@ class ImplementationGap(Base, TimestampMixin):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
     project_id: Mapped[str] = mapped_column(ForeignKey(FK_PROJECTS_ID), nullable=False)
-    analysis_version_id: Mapped[str | None] = mapped_column(ForeignKey("analysis_versions.id"))
-    rule_id: Mapped[str | None] = mapped_column(ForeignKey("rules.id"))
+    analysis_version_id: Mapped[str | None] = mapped_column(ForeignKey(FK_ANALYSIS_VERSIONS_ID))
+    rule_id: Mapped[str | None] = mapped_column(ForeignKey(FK_RULES_ID))
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     current_observed_behavior: Mapped[str | None] = mapped_column(Text)
     expected_product_behavior: Mapped[str] = mapped_column(Text, nullable=False)
@@ -299,7 +301,7 @@ class ExportDocument(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
     project_id: Mapped[str] = mapped_column(ForeignKey(FK_PROJECTS_ID), nullable=False)
-    analysis_version_id: Mapped[str | None] = mapped_column(ForeignKey("analysis_versions.id"))
+    analysis_version_id: Mapped[str | None] = mapped_column(ForeignKey(FK_ANALYSIS_VERSIONS_ID))
     scan_run_id: Mapped[str | None] = mapped_column(ForeignKey(FK_SCAN_RUNS_ID))
     export_type: Mapped[ExportType] = mapped_column(Enum(ExportType, **STR_ENUM_COLUMN_KW), nullable=False)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -312,7 +314,7 @@ class SearchIndexRecord(Base, TimestampMixin):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
     project_id: Mapped[str] = mapped_column(ForeignKey(FK_PROJECTS_ID), nullable=False)
-    analysis_version_id: Mapped[str | None] = mapped_column(ForeignKey("analysis_versions.id"))
+    analysis_version_id: Mapped[str | None] = mapped_column(ForeignKey(FK_ANALYSIS_VERSIONS_ID))
     entity_type: Mapped[SearchEntityType] = mapped_column(Enum(SearchEntityType, **STR_ENUM_COLUMN_KW), nullable=False)
     entity_id: Mapped[str] = mapped_column(String(36), nullable=False)
     text: Mapped[str] = mapped_column(Text, nullable=False)
@@ -323,7 +325,7 @@ class RuleTraceLink(Base, TimestampMixin):
     __tablename__ = "rule_trace_links"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
-    rule_id: Mapped[str] = mapped_column(ForeignKey("rules.id"), nullable=False)
+    rule_id: Mapped[str] = mapped_column(ForeignKey(FK_RULES_ID), nullable=False)
     source_file_id: Mapped[str | None] = mapped_column(ForeignKey(FK_SOURCE_FILES_ID))
     source_symbol_id: Mapped[str | None] = mapped_column(ForeignKey("source_symbols.id"))
     link_type: Mapped[RuleTraceLinkType] = mapped_column(Enum(RuleTraceLinkType, **STR_ENUM_COLUMN_KW), nullable=False)
@@ -336,8 +338,8 @@ class RuleLineage(Base, TimestampMixin):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
     project_id: Mapped[str] = mapped_column(ForeignKey(FK_PROJECTS_ID), nullable=False)
-    from_rule_id: Mapped[str] = mapped_column(ForeignKey("rules.id"), nullable=False)
-    to_rule_id: Mapped[str] = mapped_column(ForeignKey("rules.id"), nullable=False)
+    from_rule_id: Mapped[str] = mapped_column(ForeignKey(FK_RULES_ID), nullable=False)
+    to_rule_id: Mapped[str] = mapped_column(ForeignKey(FK_RULES_ID), nullable=False)
     relation: Mapped[str] = mapped_column(String(64), nullable=False)
     note: Mapped[str] = mapped_column(Text, default="", nullable=False)
     attributes_json: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
@@ -354,7 +356,7 @@ class SemanticObservation(Base, TimestampMixin):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
     project_id: Mapped[str] = mapped_column(ForeignKey(FK_PROJECTS_ID), nullable=False)
-    analysis_version_id: Mapped[str] = mapped_column(ForeignKey("analysis_versions.id"), nullable=False)
+    analysis_version_id: Mapped[str] = mapped_column(ForeignKey(FK_ANALYSIS_VERSIONS_ID), nullable=False)
     provider_key: Mapped[str] = mapped_column(String(64), nullable=False)
     provider_version: Mapped[str] = mapped_column(String(64), nullable=False, default="1")
     observation_kind: Mapped[str] = mapped_column(String(64), nullable=False)

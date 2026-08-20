@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Iterable
 
 from ruleatlas_contracts.enums import GraphObservationKind, GraphProviderStatus, GraphResolutionType
 from ruleatlas_contracts.graph_contract import NormalizedGraphEdge, StructuralAnalysisResult
@@ -30,135 +31,97 @@ def edge_canonical_key(edge_type: str, from_key: str, to_key: str) -> str:
     return f"edge:{edge_type}:{from_key}->{to_key}"
 
 
-def upsert_provider_result(
-    session: Session,
-    *,
-    project_id: str,
-    analysis_version_id: str,
-    scan_run_id: str | None,
-    result: StructuralAnalysisResult,
-) -> GraphProviderRun:
-    repositories = RepositoryFactory(session)
-    raw_payload_hash = result.raw_payload_hash
-    if raw_payload_hash is None:
-        raw_payload_hash = hashlib.sha256(
-            f"{result.provider_key}:{result.provider_version}:{result.status}".encode()
-        ).hexdigest()
-    run = repositories.graph_provider_runs().get_by_payload(
-        project_id, analysis_version_id, result.provider_key, raw_payload_hash
-    )
-    if run is None:
-        run = GraphProviderRun(
-            project_id=project_id,
-            analysis_version_id=analysis_version_id,
-            scan_run_id=scan_run_id,
-            provider_key=result.provider_key,
-            provider_version=result.provider_version,
-            status=result.status,
-            files_attempted=result.files_attempted,
-            files_succeeded=result.files_succeeded,
-            files_failed=result.files_failed,
-            files_unsupported=result.files_unsupported,
-            duration_ms=result.duration_ms,
-            error_message=result.error_message,
-            summary_json=dict(result.summary),
-            raw_payload_hash=raw_payload_hash,
-        )
-        session.add(run)
-        session.flush()
-    else:
-        # Idempotent re-import of identical payload.
-        return run
+def _provider_payload_hash(result: StructuralAnalysisResult) -> str:
+    if result.raw_payload_hash is not None:
+        return result.raw_payload_hash
+    return hashlib.sha256(
+        f"{result.provider_key}:{result.provider_version}:{result.status}".encode()
+    ).hexdigest()
 
-    node_keys = list(dict.fromkeys(item.canonical_key for item in result.nodes))
-    nodes_by_key = {
+
+def _load_nodes_by_key(session: Session, analysis_version_id: str, keys: list[str]) -> dict[str, GraphNode]:
+    if not keys:
+        return {}
+    return {
         node.canonical_key: node
         for node in session.scalars(
             select(GraphNode).where(
                 GraphNode.analysis_version_id == analysis_version_id,
-                GraphNode.canonical_key.in_(node_keys),
+                GraphNode.canonical_key.in_(keys),
             )
         ).all()
-    } if node_keys else {}
-    new_nodes: list[GraphNode] = []
-    for item in result.nodes:
-        node = nodes_by_key.get(item.canonical_key)
-        if node is None:
-            node = GraphNode(
-                project_id=project_id,
-                analysis_version_id=analysis_version_id,
-                canonical_key=item.canonical_key,
-                node_type=item.node_type,
-                display_name=item.display_name,
-                language_key=item.language_key,
-                source_path=item.source_path,
-                start_line=item.start_line,
-                end_line=item.end_line,
-                content_hash=item.content_hash,
-                symbol_kind=item.symbol_kind,
-                attributes_json=dict(item.attributes),
-            )
-            nodes_by_key[item.canonical_key] = node
-            new_nodes.append(node)
-    if new_nodes:
-        session.add_all(new_nodes)
-        session.flush()
+    }
 
-    extracted = inferred = ambiguous = 0
-    edge_keys = list(dict.fromkeys(edge.canonical_key for edge in result.edges))
-    edges_by_key = {
+
+def _load_edges_by_key(session: Session, analysis_version_id: str, keys: list[str]) -> dict[str, GraphEdge]:
+    if not keys:
+        return {}
+    return {
         edge.canonical_key: edge
         for edge in session.scalars(
             select(GraphEdge).where(
                 GraphEdge.analysis_version_id == analysis_version_id,
-                GraphEdge.canonical_key.in_(edge_keys),
+                GraphEdge.canonical_key.in_(keys),
             )
         ).all()
-    } if edge_keys else {}
-    new_edges: list[GraphEdge] = []
-    observation_rows: list[GraphObservation] = []
-    observation_keys: set[tuple[str, str]] = set()
+    }
 
-    def add_observation(
-        *,
-        kind: str,
-        provider_object_id: str,
-        confidence: float,
-        payload: dict,
-        node_id: str | None = None,
-        edge_id: str | None = None,
-        resolution_type: str = GraphResolutionType.EXTRACTED.value,
-    ) -> None:
-        """Queue the first observation for a provider object in this new run."""
-        observation_key = (kind, provider_object_id)
-        if observation_key in observation_keys:
-            return
-        observation_keys.add(observation_key)
-        observation_rows.append(
-            GraphObservation(
-                project_id=project_id,
-                analysis_version_id=analysis_version_id,
-                provider_run_id=run.id,
-                observation_kind=kind,
-                provider_object_id=provider_object_id,
-                node_id=node_id,
-                edge_id=edge_id,
-                confidence=confidence,
-                resolution_type=resolution_type,
-                raw_payload_json=payload,
-            )
-        )
 
+def _ensure_graph_nodes(
+    session: Session,
+    *,
+    project_id: str,
+    analysis_version_id: str,
+    result: StructuralAnalysisResult,
+) -> dict[str, GraphNode]:
+    node_keys = list(dict.fromkeys(item.canonical_key for item in result.nodes))
+    nodes_by_key = _load_nodes_by_key(session, analysis_version_id, node_keys)
+    new_nodes: list[GraphNode] = []
     for item in result.nodes:
-        node = nodes_by_key[item.canonical_key]
-        add_observation(
-            kind=GraphObservationKind.NODE.value,
-            provider_object_id=item.provider_object_id,
-            node_id=node.id,
-            confidence=item.confidence,
-            payload={"canonical_key": item.canonical_key, **item.attributes},
+        if item.canonical_key in nodes_by_key:
+            continue
+        node = GraphNode(
+            project_id=project_id,
+            analysis_version_id=analysis_version_id,
+            canonical_key=item.canonical_key,
+            node_type=item.node_type,
+            display_name=item.display_name,
+            language_key=item.language_key,
+            source_path=item.source_path,
+            start_line=item.start_line,
+            end_line=item.end_line,
+            content_hash=item.content_hash,
+            symbol_kind=item.symbol_kind,
+            attributes_json=dict(item.attributes),
         )
+        nodes_by_key[item.canonical_key] = node
+        new_nodes.append(node)
+    if new_nodes:
+        session.add_all(new_nodes)
+        session.flush()
+    return nodes_by_key
 
+
+def _count_resolution(edge: NormalizedGraphEdge) -> str:
+    if edge.resolution_type == GraphResolutionType.INFERRED.value:
+        return "inferred"
+    if edge.resolution_type == GraphResolutionType.AMBIGUOUS.value:
+        return "ambiguous"
+    return "extracted"
+
+
+def _ensure_graph_edges(
+    session: Session,
+    *,
+    project_id: str,
+    analysis_version_id: str,
+    result: StructuralAnalysisResult,
+    nodes_by_key: dict[str, GraphNode],
+) -> tuple[int, int, int, list[tuple[NormalizedGraphEdge, GraphEdge]]]:
+    extracted = inferred = ambiguous = 0
+    edge_keys = list(dict.fromkeys(edge.canonical_key for edge in result.edges))
+    edges_by_key = _load_edges_by_key(session, analysis_version_id, edge_keys)
+    new_edges: list[GraphEdge] = []
     resolved_edges: list[tuple[NormalizedGraphEdge, GraphEdge]] = []
     for edge in result.edges:
         from_node = nodes_by_key.get(edge.from_canonical_key)
@@ -166,12 +129,10 @@ def upsert_provider_result(
         if from_node is None or to_node is None:
             ambiguous += 1
             continue
-        if edge.resolution_type == GraphResolutionType.INFERRED.value:
-            inferred += 1
-        elif edge.resolution_type == GraphResolutionType.AMBIGUOUS.value:
-            ambiguous += 1
-        else:
-            extracted += 1
+        bucket = _count_resolution(edge)
+        extracted += int(bucket == "extracted")
+        inferred += int(bucket == "inferred")
+        ambiguous += int(bucket == "ambiguous")
         graph_edge = edges_by_key.get(edge.canonical_key)
         if graph_edge is None:
             graph_edge = GraphEdge(
@@ -191,8 +152,136 @@ def upsert_provider_result(
     if new_edges:
         session.add_all(new_edges)
         session.flush()
+    return extracted, inferred, ambiguous, resolved_edges
+
+
+def _queue_observation(
+    observation_rows: list[GraphObservation],
+    observation_keys: set[tuple[str, str]],
+    *,
+    project_id: str,
+    analysis_version_id: str,
+    run_id: str,
+    kind: str,
+    provider_object_id: str,
+    confidence: float,
+    payload: dict,
+    node_id: str | None = None,
+    edge_id: str | None = None,
+    resolution_type: str = GraphResolutionType.EXTRACTED.value,
+) -> None:
+    observation_key = (kind, provider_object_id)
+    if observation_key in observation_keys:
+        return
+    observation_keys.add(observation_key)
+    observation_rows.append(
+        GraphObservation(
+            project_id=project_id,
+            analysis_version_id=analysis_version_id,
+            provider_run_id=run_id,
+            observation_kind=kind,
+            provider_object_id=provider_object_id,
+            node_id=node_id,
+            edge_id=edge_id,
+            confidence=confidence,
+            resolution_type=resolution_type,
+            raw_payload_json=payload,
+        )
+    )
+
+
+def _finalize_provider_run(
+    run: GraphProviderRun,
+    result: StructuralAnalysisResult,
+    *,
+    extracted: int,
+    inferred: int,
+    ambiguous: int,
+) -> None:
+    run.nodes_count = len(result.nodes)
+    run.edges_count = len(result.edges)
+    run.extracted_edges = extracted
+    run.inferred_edges = inferred
+    run.ambiguous_edges = ambiguous
+    if result.status == GraphProviderStatus.FAILED.value:
+        run.status = GraphProviderStatus.FAILED.value
+        return
+    if ambiguous or result.files_failed:
+        run.status = GraphProviderStatus.DEGRADED.value if result.nodes else GraphProviderStatus.PARTIAL.value
+        return
+    run.status = result.status or GraphProviderStatus.SUCCEEDED.value
+
+
+def upsert_provider_result(
+    session: Session,
+    *,
+    project_id: str,
+    analysis_version_id: str,
+    scan_run_id: str | None,
+    result: StructuralAnalysisResult,
+) -> GraphProviderRun:
+    repositories = RepositoryFactory(session)
+    raw_payload_hash = _provider_payload_hash(result)
+    run = repositories.graph_provider_runs().get_by_payload(
+        project_id, analysis_version_id, result.provider_key, raw_payload_hash
+    )
+    if run is not None:
+        return run
+    run = GraphProviderRun(
+        project_id=project_id,
+        analysis_version_id=analysis_version_id,
+        scan_run_id=scan_run_id,
+        provider_key=result.provider_key,
+        provider_version=result.provider_version,
+        status=result.status,
+        files_attempted=result.files_attempted,
+        files_succeeded=result.files_succeeded,
+        files_failed=result.files_failed,
+        files_unsupported=result.files_unsupported,
+        duration_ms=result.duration_ms,
+        error_message=result.error_message,
+        summary_json=dict(result.summary),
+        raw_payload_hash=raw_payload_hash,
+    )
+    session.add(run)
+    session.flush()
+
+    nodes_by_key = _ensure_graph_nodes(
+        session,
+        project_id=project_id,
+        analysis_version_id=analysis_version_id,
+        result=result,
+    )
+    extracted, inferred, ambiguous, resolved_edges = _ensure_graph_edges(
+        session,
+        project_id=project_id,
+        analysis_version_id=analysis_version_id,
+        result=result,
+        nodes_by_key=nodes_by_key,
+    )
+    observation_rows: list[GraphObservation] = []
+    observation_keys: set[tuple[str, str]] = set()
+    for item in result.nodes:
+        node = nodes_by_key[item.canonical_key]
+        _queue_observation(
+            observation_rows,
+            observation_keys,
+            project_id=project_id,
+            analysis_version_id=analysis_version_id,
+            run_id=run.id,
+            kind=GraphObservationKind.NODE.value,
+            provider_object_id=item.provider_object_id,
+            node_id=node.id,
+            confidence=item.confidence,
+            payload={"canonical_key": item.canonical_key, **item.attributes},
+        )
     for edge, graph_edge in resolved_edges:
-        add_observation(
+        _queue_observation(
+            observation_rows,
+            observation_keys,
+            project_id=project_id,
+            analysis_version_id=analysis_version_id,
+            run_id=run.id,
             kind=GraphObservationKind.EDGE.value,
             provider_object_id=edge.provider_object_id,
             edge_id=graph_edge.id,
@@ -202,23 +291,11 @@ def upsert_provider_result(
         )
     if observation_rows:
         session.add_all(observation_rows)
-
-    run.nodes_count = len(result.nodes)
-    run.edges_count = len(result.edges)
-    run.extracted_edges = extracted
-    run.inferred_edges = inferred
-    run.ambiguous_edges = ambiguous
-    if result.status == GraphProviderStatus.FAILED.value:
-        run.status = GraphProviderStatus.FAILED.value
-    elif ambiguous or result.files_failed:
-        run.status = GraphProviderStatus.DEGRADED.value if result.nodes else GraphProviderStatus.PARTIAL.value
-    else:
-        run.status = result.status or GraphProviderStatus.SUCCEEDED.value
+    _finalize_provider_run(run, result, extracted=extracted, inferred=inferred, ambiguous=ambiguous)
     session.add(run)
     session.commit()
     session.refresh(run)
     return run
-
 
 def get_node(
     session: Session,
@@ -350,6 +427,64 @@ def _run_dict(run: GraphProviderRun) -> dict:
     }
 
 
+def _path_payload(
+    *,
+    found: bool,
+    node_ids: list[str],
+    edge_ids: list[str],
+    max_depth: int,
+    max_nodes: int,
+) -> dict:
+    return {
+        "found": found,
+        "node_ids": node_ids,
+        "edge_ids": edge_ids,
+        "limits": {"max_depth": max_depth, "max_nodes": max_nodes},
+    }
+
+
+def _expand_path_frontier(
+    edges: Iterable[GraphEdge],
+    *,
+    visited: set[str],
+    parent: dict[str, tuple[str, str]],
+    to_node_id: str,
+) -> tuple[list[str], bool]:
+    next_frontier: list[str] = []
+    for edge in edges:
+        for origin, destination in (
+            (edge.from_node_id, edge.to_node_id),
+            (edge.to_node_id, edge.from_node_id),
+        ):
+            if origin not in visited and destination in visited:
+                continue
+            if origin in visited and destination not in visited:
+                visited.add(destination)
+                parent[destination] = (origin, edge.id)
+                next_frontier.append(destination)
+                if destination == to_node_id:
+                    return next_frontier, True
+    return next_frontier, False
+
+
+def _reconstruct_path(
+    parent: dict[str, tuple[str, str]],
+    from_node_id: str,
+    to_node_id: str,
+) -> tuple[list[str], list[str]]:
+    node_ids = [to_node_id]
+    edge_ids: list[str] = []
+    current = to_node_id
+    while current != from_node_id:
+        previous, edge_id = parent[current]
+        edge_ids.append(edge_id)
+        node_ids.append(previous)
+        current = previous
+    node_ids.reverse()
+    edge_ids.reverse()
+    return node_ids, edge_ids
+
+
 def find_path(
     session: Session,
     *,
@@ -370,12 +505,13 @@ def find_path(
             analysis_version_id=analysis_version_id,
             node_id=from_node_id,
         )
-        return {
-            "found": node is not None,
-            "node_ids": [from_node_id] if node else [],
-            "edge_ids": [],
-            "limits": {"max_depth": max_depth, "max_nodes": max_nodes},
-        }
+        return _path_payload(
+            found=node is not None,
+            node_ids=[from_node_id] if node else [],
+            edge_ids=[],
+            max_depth=max_depth,
+            max_nodes=max_nodes,
+        )
     parent: dict[str, tuple[str, str]] = {}
     visited = {from_node_id}
     frontier = [from_node_id]
@@ -383,7 +519,6 @@ def find_path(
     for _ in range(max_depth):
         if not frontier or len(visited) >= max_nodes:
             break
-        next_frontier: list[str] = []
         edges = (
             RepositoryFactory(session)
             .graph_edges()
@@ -394,45 +529,30 @@ def find_path(
                 limit=max_nodes * 4,
             )
         )
-        for edge in edges:
-            for a, b in ((edge.from_node_id, edge.to_node_id), (edge.to_node_id, edge.from_node_id)):
-                if a not in visited and b in visited:
-                    continue
-                if a in visited and b not in visited:
-                    visited.add(b)
-                    parent[b] = (a, edge.id)
-                    next_frontier.append(b)
-                    if b == to_node_id:
-                        found = True
-                        break
-            if found:
-                break
+        frontier, found = _expand_path_frontier(
+            edges,
+            visited=visited,
+            parent=parent,
+            to_node_id=to_node_id,
+        )
         if found:
             break
-        frontier = next_frontier
     if not found:
-        return {
-            "found": False,
-            "node_ids": [],
-            "edge_ids": [],
-            "limits": {"max_depth": max_depth, "max_nodes": max_nodes},
-        }
-    node_ids = [to_node_id]
-    edge_ids: list[str] = []
-    cur = to_node_id
-    while cur != from_node_id:
-        prev, edge_id = parent[cur]
-        edge_ids.append(edge_id)
-        node_ids.append(prev)
-        cur = prev
-    node_ids.reverse()
-    edge_ids.reverse()
-    return {
-        "found": True,
-        "node_ids": node_ids,
-        "edge_ids": edge_ids,
-        "limits": {"max_depth": max_depth, "max_nodes": max_nodes},
-    }
+        return _path_payload(
+            found=False,
+            node_ids=[],
+            edge_ids=[],
+            max_depth=max_depth,
+            max_nodes=max_nodes,
+        )
+    node_ids, edge_ids = _reconstruct_path(parent, from_node_id, to_node_id)
+    return _path_payload(
+        found=True,
+        node_ids=node_ids,
+        edge_ids=edge_ids,
+        max_depth=max_depth,
+        max_nodes=max_nodes,
+    )
 
 
 def related_tests(

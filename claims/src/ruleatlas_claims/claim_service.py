@@ -12,6 +12,7 @@ import hashlib
 from ruleatlas_contracts.claims import ClaimDraft as ClaimDraft
 from ruleatlas_contracts.enums import SourceClaimRole, SourceClaimStatus
 from ruleatlas_persistence.models import (
+    GraphNode,
     SourceClaim,
     SourceClaimEvidence,
 )
@@ -186,6 +187,137 @@ def persist_claims(
     return output
 
 
+_STRUCTURAL_PATTERN_KINDS = {
+    "authorization_gate": (
+        "Authorization gate detected",
+        "caller lacks required role/permission",
+        "deny or raise authorization error",
+        0.55,
+    ),
+    "validation_failure": (
+        "Validation failure path detected",
+        "input fails validation",
+        "reject request or raise validation error",
+        0.5,
+    ),
+    "threshold": (
+        "Threshold or limit check detected",
+        "value crosses configured threshold",
+        "enforce limit",
+        0.48,
+    ),
+    "state_transition": (
+        "State transition detected",
+        "entity is in a prior state",
+        "transition entity to a new state",
+        0.5,
+    ),
+    "expiration": (
+        "Expiration or retention check detected",
+        "resource is expired or past retention",
+        "deny access or purge resource",
+        0.52,
+    ),
+    "role_restriction": (
+        "Role restriction detected",
+        "caller role is not allowed",
+        "deny operation",
+        0.53,
+    ),
+    "tenancy_check": (
+        "Tenancy boundary check detected",
+        "caller tenant does not match resource tenant",
+        "deny cross-tenant access",
+        0.54,
+    ),
+    "feature_flag": (
+        "Feature flag gate detected",
+        "feature flag is disabled for caller",
+        "hide or deny feature",
+        0.45,
+    ),
+}
+_STRUCTURAL_NAME_HINTS = (
+    ("can_", "authorization_gate"),
+    ("require", "authorization_gate"),
+    ("authorize", "authorization_gate"),
+    ("permission", "role_restriction"),
+    ("validate", "validation_failure"),
+    ("threshold", "threshold"),
+    ("limit", "threshold"),
+    ("expire", "expiration"),
+    ("retention", "expiration"),
+    ("ttl", "expiration"),
+    ("org_id", "tenancy_check"),
+    ("tenant", "tenancy_check"),
+    ("feature_flag", "feature_flag"),
+    ("status =", "state_transition"),
+    ("transition", "state_transition"),
+)
+
+
+def _structural_kind_for_node(node: GraphNode) -> str | None:
+    kind = node.symbol_kind or ""
+    attrs = node.attributes_json or {}
+    if attrs.get("pattern"):
+        kind = str(attrs["pattern"])
+    if kind in _STRUCTURAL_PATTERN_KINDS:
+        return kind
+    lowered = (node.display_name or "").lower()
+    for hint, mapped in _STRUCTURAL_NAME_HINTS:
+        if hint in lowered:
+            return mapped
+    return None
+
+
+def _structural_claim_draft(
+    session: Session,
+    *,
+    project_id: str,
+    analysis_version_id: str,
+    node: GraphNode,
+    kind: str,
+) -> ClaimDraft:
+    title, condition, action, confidence = _STRUCTURAL_PATTERN_KINDS[kind]
+    edge_ids = [
+        edge.id
+        for edge in RepositoryFactory(session)
+        .graph_edges()
+        .list_for_node_limited(project_id, analysis_version_id, node.id, limit=20)
+    ]
+    return ClaimDraft(
+        claim_text=f"{title} at {node.display_name}",
+        provider_key="structural_graph",
+        provider_version="1.0.0",
+        claim_role=SourceClaimRole.IMPLEMENTATION.value,
+        confidence=confidence,
+        actor="system",
+        condition_text=condition,
+        action_text=action,
+        subject_text=node.display_name,
+        source_path=node.source_path,
+        start_line=node.start_line,
+        end_line=node.end_line,
+        graph_node_id=node.id,
+        evidence=[
+            {
+                "evidence_kind": "graph_node",
+                "reference_path": node.source_path or "",
+                "start_line": node.start_line,
+                "end_line": node.end_line,
+                "graph_node_id": node.id,
+                "excerpt": node.display_name,
+                "attributes": {"supporting_edge_ids": edge_ids},
+            }
+        ],
+        attributes={
+            "pattern": kind,
+            "supporting_nodes": [node.id],
+            "supporting_edges": edge_ids,
+        },
+    )
+
+
 def extract_structural_claims_from_graph(
     session: Session,
     *,
@@ -193,129 +325,21 @@ def extract_structural_claims_from_graph(
     analysis_version_id: str,
 ) -> list[ClaimDraft]:
     """Generate structured claims from graph neighborhoods (deterministic)."""
-    pattern_kinds = {
-        "authorization_gate": (
-            "Authorization gate detected",
-            "caller lacks required role/permission",
-            "deny or raise authorization error",
-            0.55,
-        ),
-        "validation_failure": (
-            "Validation failure path detected",
-            "input fails validation",
-            "reject request or raise validation error",
-            0.5,
-        ),
-        "threshold": (
-            "Threshold or limit check detected",
-            "value crosses configured threshold",
-            "enforce limit",
-            0.48,
-        ),
-        "state_transition": (
-            "State transition detected",
-            "entity is in a prior state",
-            "transition entity to a new state",
-            0.5,
-        ),
-        "expiration": (
-            "Expiration or retention check detected",
-            "resource is expired or past retention",
-            "deny access or purge resource",
-            0.52,
-        ),
-        "role_restriction": (
-            "Role restriction detected",
-            "caller role is not allowed",
-            "deny operation",
-            0.53,
-        ),
-        "tenancy_check": (
-            "Tenancy boundary check detected",
-            "caller tenant does not match resource tenant",
-            "deny cross-tenant access",
-            0.54,
-        ),
-        "feature_flag": (
-            "Feature flag gate detected",
-            "feature flag is disabled for caller",
-            "hide or deny feature",
-            0.45,
-        ),
-    }
-    name_hints = (
-        ("can_", "authorization_gate"),
-        ("require", "authorization_gate"),
-        ("authorize", "authorization_gate"),
-        ("permission", "role_restriction"),
-        ("validate", "validation_failure"),
-        ("threshold", "threshold"),
-        ("limit", "threshold"),
-        ("expire", "expiration"),
-        ("retention", "expiration"),
-        ("ttl", "expiration"),
-        ("org_id", "tenancy_check"),
-        ("tenant", "tenancy_check"),
-        ("feature_flag", "feature_flag"),
-        ("status =", "state_transition"),
-        ("transition", "state_transition"),
-    )
     nodes = RepositoryFactory(session).graph_nodes().list_for_analysis(
         project_id, analysis_version_id
     )
     drafts: list[ClaimDraft] = []
     for node in nodes:
-        kind = node.symbol_kind or ""
-        attrs = node.attributes_json or {}
-        if attrs.get("pattern"):
-            kind = str(attrs["pattern"])
-        if kind not in pattern_kinds:
-            lowered = (node.display_name or "").lower()
-            for hint, mapped in name_hints:
-                if hint in lowered:
-                    kind = mapped
-                    break
-        if kind not in pattern_kinds:
+        kind = _structural_kind_for_node(node)
+        if kind is None:
             continue
-        title, condition, action, confidence = pattern_kinds[kind]
-        # Collect supporting neighborhood edges (bounded)
-        edge_ids = [
-            e.id
-            for e in RepositoryFactory(session)
-            .graph_edges()
-            .list_for_node_limited(project_id, analysis_version_id, node.id, limit=20)
-        ]
         drafts.append(
-            ClaimDraft(
-                claim_text=f"{title} at {node.display_name}",
-                provider_key="structural_graph",
-                provider_version="1.0.0",
-                claim_role=SourceClaimRole.IMPLEMENTATION.value,
-                confidence=confidence,
-                actor="system",
-                condition_text=condition,
-                action_text=action,
-                subject_text=node.display_name,
-                source_path=node.source_path,
-                start_line=node.start_line,
-                end_line=node.end_line,
-                graph_node_id=node.id,
-                evidence=[
-                    {
-                        "evidence_kind": "graph_node",
-                        "reference_path": node.source_path or "",
-                        "start_line": node.start_line,
-                        "end_line": node.end_line,
-                        "graph_node_id": node.id,
-                        "excerpt": node.display_name,
-                        "attributes": {"supporting_edge_ids": edge_ids},
-                    }
-                ],
-                attributes={
-                    "pattern": kind,
-                    "supporting_nodes": [node.id],
-                    "supporting_edges": edge_ids,
-                },
+            _structural_claim_draft(
+                session,
+                project_id=project_id,
+                analysis_version_id=analysis_version_id,
+                node=node,
+                kind=kind,
             )
         )
     return drafts

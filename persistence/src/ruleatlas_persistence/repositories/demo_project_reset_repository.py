@@ -128,211 +128,124 @@ class DemoProjectResetRepository:
         coverage_line_ids = repos.coverage_reports().line_ids_for_project(project_id)
         test_case_ids = repos.test_cases().ids_for_project(project_id)
 
-        # --- Composite / AI / claims stack (before analysis_versions) ---
-        counts["ai_investigation_traces"] = self._delete(
-            delete(AiInvestigationTrace).where(AiInvestigationTrace.project_id == project_id)
-        )
-        counts["claim_cluster_memberships"] = self._delete(
-            delete(ClaimClusterMembership).where(ClaimClusterMembership.project_id == project_id)
-        )
-        counts["claim_embeddings"] = self._delete(
-            delete(ClaimEmbedding).where(ClaimEmbedding.project_id == project_id)
-        )
-        counts["claim_clusters"] = self._delete(
-            delete(ClaimCluster).where(ClaimCluster.project_id == project_id)
-        )
-        claim_ids = [
-            row[0]
-            for row in self._session.query(SourceClaim.id)
-            .filter(SourceClaim.project_id == project_id)
-            .all()
-        ]
-        counts["source_claim_evidence"] = self._delete(
-            delete(SourceClaimEvidence).where(SourceClaimEvidence.source_claim_id.in_(claim_ids))
-            if claim_ids
-            else None
-        )
-        counts["source_claims"] = self._delete(
-            delete(SourceClaim).where(SourceClaim.project_id == project_id)
-        )
-        counts["composite_pipeline_runs"] = self._delete(
-            delete(CompositePipelineRun).where(CompositePipelineRun.project_id == project_id)
-        )
-
-        # BDD / test evidence (graph FKs)
-        bdd_feature_ids = [
-            row[0]
-            for row in self._session.query(BddFeature.id)
-            .filter(BddFeature.project_id == project_id)
-            .all()
-        ]
-        bdd_scenario_ids = [
-            row[0]
-            for row in self._session.query(BddScenario.id)
-            .filter(BddScenario.project_id == project_id)
-            .all()
-        ]
-        bdd_step_ids = [
-            row[0]
-            for row in self._session.query(BddStep.id).filter(BddStep.project_id == project_id).all()
-        ]
-        counts["bdd_step_links"] = self._delete(
-            delete(BddStepLink).where(BddStepLink.project_id == project_id)
-        )
-        counts["bdd_steps"] = self._delete(
-            delete(BddStep).where(BddStep.id.in_(bdd_step_ids)) if bdd_step_ids else None
-        )
-        counts["bdd_scenarios"] = self._delete(
-            delete(BddScenario).where(BddScenario.id.in_(bdd_scenario_ids))
-            if bdd_scenario_ids
-            else None
-        )
-        counts["bdd_features"] = self._delete(
-            delete(BddFeature).where(BddFeature.id.in_(bdd_feature_ids)) if bdd_feature_ids else None
-        )
-        test_evidence_ids = [
-            row[0]
-            for row in self._session.query(TestEvidenceCase.id)
-            .filter(TestEvidenceCase.project_id == project_id)
-            .all()
-        ]
-        counts["test_assertions"] = self._delete(
-            delete(TestAssertion).where(TestAssertion.test_evidence_case_id.in_(test_evidence_ids))
-            if test_evidence_ids
-            else None
-        )
-        counts["test_executions"] = self._delete(
-            delete(TestExecution).where(TestExecution.project_id == project_id)
-        )
-        counts["test_fixtures"] = self._delete(
-            delete(TestFixture).where(TestFixture.project_id == project_id)
-        )
-        counts["test_evidence_cases"] = self._delete(
-            delete(TestEvidenceCase).where(TestEvidenceCase.project_id == project_id)
-        )
-
-        # Graph stack
-        counts["graph_observations"] = self._delete(
-            delete(GraphObservation).where(GraphObservation.project_id == project_id)
-        )
-        counts["graph_edges"] = self._delete(
-            delete(GraphEdge).where(GraphEdge.project_id == project_id)
-        )
-        counts["graph_hyperedges"] = self._delete(
-            delete(GraphHyperedge).where(GraphHyperedge.project_id == project_id)
-        )
-        counts["graph_communities"] = self._delete(
-            delete(GraphCommunity).where(GraphCommunity.project_id == project_id)
-        )
-        counts["graph_nodes"] = self._delete(
-            delete(GraphNode).where(GraphNode.project_id == project_id)
-        )
-        counts["graph_provider_runs"] = self._delete(
-            delete(GraphProviderRun).where(GraphProviderRun.project_id == project_id)
-        )
-        counts["semantic_observations"] = self._delete(
-            delete(SemanticObservation).where(SemanticObservation.project_id == project_id)
-        )
-
-        # Manifests
-        manifest_ids = [
-            row[0]
-            for row in self._session.query(AnalysisManifest.id)
-            .filter(AnalysisManifest.project_id == project_id)
-            .all()
-        ]
-        counts["analysis_manifest_files"] = self._delete(
-            delete(AnalysisManifestFile).where(AnalysisManifestFile.manifest_id.in_(manifest_ids))
-            if manifest_ids
-            else None
-        )
-        counts["analysis_manifests"] = self._delete(
-            delete(AnalysisManifest).where(AnalysisManifest.project_id == project_id)
-        )
-
-        counts["rule_source_claims"] = self._delete(
-            delete(RuleSourceClaim).where(RuleSourceClaim.project_id == project_id)
-        )
-        counts["rule_evidence"] = self._delete(
-            delete(RuleEvidence).where(RuleEvidence.rule_id.in_(rule_ids)) if rule_ids else None
-        )
-        counts["rule_coverage_assessments"] = self._delete(
-            delete(RuleCoverageAssessment).where(RuleCoverageAssessment.rule_id.in_(rule_ids))
-            if rule_ids
-            else None
-        )
-        counts["rule_trace_links"] = self._delete(
-            delete(RuleTraceLink).where(RuleTraceLink.rule_id.in_(rule_ids)) if rule_ids else None
-        )
-        counts["rule_decisions"] = self._delete(
-            delete(RuleDecision).where(RuleDecision.rule_id.in_(rule_ids)) if rule_ids else None
-        )
-        counts["rule_reviews"] = self._delete(
-            delete(RuleReview).where(RuleReview.rule_id.in_(rule_ids)) if rule_ids else None
-        )
-        counts["rule_conflicts"] = self._delete(
-            delete(RuleConflict).where(RuleConflict.project_id == project_id)
-        )
-        counts["implementation_gaps"] = self._delete(
-            delete(ImplementationGap).where(ImplementationGap.project_id == project_id)
-        )
-        counts["runtime_log_evidence"] = self._delete(
-            delete(RuntimeLogEvidence).where(RuntimeLogEvidence.project_id == project_id)
-        )
-        counts["test_coverage_links"] = self._delete(
-            delete(TestCoverageLink).where(
-                (TestCoverageLink.test_case_id.in_(test_case_ids))
-                | (TestCoverageLink.coverage_line_id.in_(coverage_line_ids))
+        counts.update(self._purge_claims_and_composite(project_id))
+        counts.update(self._purge_bdd_and_test_evidence(project_id))
+        counts.update(self._purge_graph_stack(project_id))
+        counts.update(self._purge_manifests(project_id))
+        counts.update(
+            self._purge_rules_coverage_and_sources(
+                project_id,
+                rule_ids=rule_ids,
+                source_file_ids=source_file_ids,
+                coverage_report_ids=coverage_report_ids,
+                coverage_file_ids=coverage_file_ids,
+                coverage_line_ids=coverage_line_ids,
+                test_case_ids=test_case_ids,
             )
-            if test_case_ids or coverage_line_ids
-            else None
         )
-        counts["coverage_lines"] = self._delete(
-            delete(CoverageLine).where(CoverageLine.coverage_file_id.in_(coverage_file_ids))
-            if coverage_file_ids
-            else None
-        )
-        counts["coverage_branches"] = self._delete(
-            delete(CoverageBranch).where(CoverageBranch.coverage_file_id.in_(coverage_file_ids))
-            if coverage_file_ids
-            else None
-        )
-        counts["coverage_files"] = self._delete(
-            delete(CoverageFile).where(CoverageFile.coverage_report_id.in_(coverage_report_ids))
-            if coverage_report_ids
-            else None
-        )
-        counts["coverage_reports"] = self._delete(
-            delete(CoverageReport).where(CoverageReport.project_id == project_id)
-        )
-        counts["runtime_evidence_imports"] = self._delete(
-            delete(RuntimeEvidenceImport).where(RuntimeEvidenceImport.project_id == project_id)
-        )
+        return counts
 
+    def _purge_claims_and_composite(self, project_id: str) -> dict[str, int]:
+        claim_ids = self._ids_for_project(SourceClaim, project_id)
+        return {
+            "ai_investigation_traces": self._delete_for_project(AiInvestigationTrace, project_id),
+            "claim_cluster_memberships": self._delete_for_project(ClaimClusterMembership, project_id),
+            "claim_embeddings": self._delete_for_project(ClaimEmbedding, project_id),
+            "claim_clusters": self._delete_for_project(ClaimCluster, project_id),
+            "source_claim_evidence": self._delete_in(
+                SourceClaimEvidence, SourceClaimEvidence.source_claim_id, claim_ids
+            ),
+            "source_claims": self._delete_for_project(SourceClaim, project_id),
+            "composite_pipeline_runs": self._delete_for_project(CompositePipelineRun, project_id),
+        }
+
+    def _purge_bdd_and_test_evidence(self, project_id: str) -> dict[str, int]:
+        bdd_feature_ids = self._ids_for_project(BddFeature, project_id)
+        bdd_scenario_ids = self._ids_for_project(BddScenario, project_id)
+        bdd_step_ids = self._ids_for_project(BddStep, project_id)
+        test_evidence_ids = self._ids_for_project(TestEvidenceCase, project_id)
+        return {
+            "bdd_step_links": self._delete_for_project(BddStepLink, project_id),
+            "bdd_steps": self._delete_in(BddStep, BddStep.id, bdd_step_ids),
+            "bdd_scenarios": self._delete_in(BddScenario, BddScenario.id, bdd_scenario_ids),
+            "bdd_features": self._delete_in(BddFeature, BddFeature.id, bdd_feature_ids),
+            "test_assertions": self._delete_in(
+                TestAssertion, TestAssertion.test_evidence_case_id, test_evidence_ids
+            ),
+            "test_executions": self._delete_for_project(TestExecution, project_id),
+            "test_fixtures": self._delete_for_project(TestFixture, project_id),
+            "test_evidence_cases": self._delete_for_project(TestEvidenceCase, project_id),
+        }
+
+    def _purge_graph_stack(self, project_id: str) -> dict[str, int]:
+        return {
+            "graph_observations": self._delete_for_project(GraphObservation, project_id),
+            "graph_edges": self._delete_for_project(GraphEdge, project_id),
+            "graph_hyperedges": self._delete_for_project(GraphHyperedge, project_id),
+            "graph_communities": self._delete_for_project(GraphCommunity, project_id),
+            "graph_nodes": self._delete_for_project(GraphNode, project_id),
+            "graph_provider_runs": self._delete_for_project(GraphProviderRun, project_id),
+            "semantic_observations": self._delete_for_project(SemanticObservation, project_id),
+        }
+
+    def _purge_manifests(self, project_id: str) -> dict[str, int]:
+        manifest_ids = self._ids_for_project(AnalysisManifest, project_id)
+        return {
+            "analysis_manifest_files": self._delete_in(
+                AnalysisManifestFile, AnalysisManifestFile.manifest_id, manifest_ids
+            ),
+            "analysis_manifests": self._delete_for_project(AnalysisManifest, project_id),
+        }
+
+    def _purge_rules_coverage_and_sources(
+        self,
+        project_id: str,
+        *,
+        rule_ids: list[str],
+        source_file_ids: list[str],
+        coverage_report_ids: list[str],
+        coverage_file_ids: list[str],
+        coverage_line_ids: list[str],
+        test_case_ids: list[str],
+    ) -> dict[str, int]:
+        counts = {
+            "rule_source_claims": self._delete_for_project(RuleSourceClaim, project_id),
+            "rule_evidence": self._delete_in(RuleEvidence, RuleEvidence.rule_id, rule_ids),
+            "rule_coverage_assessments": self._delete_in(
+                RuleCoverageAssessment, RuleCoverageAssessment.rule_id, rule_ids
+            ),
+            "rule_trace_links": self._delete_in(RuleTraceLink, RuleTraceLink.rule_id, rule_ids),
+            "rule_decisions": self._delete_in(RuleDecision, RuleDecision.rule_id, rule_ids),
+            "rule_reviews": self._delete_in(RuleReview, RuleReview.rule_id, rule_ids),
+            "rule_conflicts": self._delete_for_project(RuleConflict, project_id),
+            "implementation_gaps": self._delete_for_project(ImplementationGap, project_id),
+            "runtime_log_evidence": self._delete_for_project(RuntimeLogEvidence, project_id),
+            "test_coverage_links": self._delete_test_coverage_links(test_case_ids, coverage_line_ids),
+            "coverage_lines": self._delete_in(CoverageLine, CoverageLine.coverage_file_id, coverage_file_ids),
+            "coverage_branches": self._delete_in(
+                CoverageBranch, CoverageBranch.coverage_file_id, coverage_file_ids
+            ),
+            "coverage_files": self._delete_in(
+                CoverageFile, CoverageFile.coverage_report_id, coverage_report_ids
+            ),
+            "coverage_reports": self._delete_for_project(CoverageReport, project_id),
+            "runtime_evidence_imports": self._delete_for_project(RuntimeEvidenceImport, project_id),
+        }
         if source_file_ids:
             self._session.execute(
                 update(SourceSymbol)
                 .where(SourceSymbol.source_file_id.in_(source_file_ids))
                 .values(parent_symbol_id=None)
             )
-        counts["source_symbols"] = self._delete(
-            delete(SourceSymbol).where(SourceSymbol.source_file_id.in_(source_file_ids))
-            if source_file_ids
-            else None
+        counts["source_symbols"] = self._delete_in(
+            SourceSymbol, SourceSymbol.source_file_id, source_file_ids
         )
-        counts["test_cases"] = self._delete(delete(TestCase).where(TestCase.project_id == project_id))
-        counts["source_files"] = self._delete(delete(SourceFile).where(SourceFile.project_id == project_id))
-
-        counts["export_documents"] = self._delete(
-            delete(ExportDocument).where(ExportDocument.project_id == project_id)
-        )
-        counts["search_index_records"] = self._delete(
-            delete(SearchIndexRecord).where(SearchIndexRecord.project_id == project_id)
-        )
-        counts["audit_events"] = self._delete(delete(AuditEvent).where(AuditEvent.project_id == project_id))
-        counts["ai_model_usage"] = self._delete(
-            delete(AiModelUsage).where(AiModelUsage.project_id == project_id)
-        )
+        counts["test_cases"] = self._delete_for_project(TestCase, project_id)
+        counts["source_files"] = self._delete_for_project(SourceFile, project_id)
+        counts["export_documents"] = self._delete_for_project(ExportDocument, project_id)
+        counts["search_index_records"] = self._delete_for_project(SearchIndexRecord, project_id)
+        counts["audit_events"] = self._delete_for_project(AuditEvent, project_id)
+        counts["ai_model_usage"] = self._delete_for_project(AiModelUsage, project_id)
 
         self._session.execute(
             update(ScanConfig).where(ScanConfig.project_id == project_id).values(proposal_scan_run_id=None)
@@ -341,17 +254,36 @@ class DemoProjectResetRepository:
             update(SourceLocation).where(SourceLocation.project_id == project_id).values(scan_config_id=None)
         )
 
-        counts["rule_versions"] = self._delete(
-            delete(RuleVersion).where(RuleVersion.rule_id.in_(rule_ids)) if rule_ids else None
-        )
-        counts["rules"] = self._delete(delete(Rule).where(Rule.project_id == project_id))
-        counts["analysis_versions"] = self._delete(
-            delete(AnalysisVersion).where(AnalysisVersion.project_id == project_id)
-        )
-        counts["scan_runs"] = self._delete(delete(ScanRun).where(ScanRun.project_id == project_id))
-        counts["scan_configs"] = self._delete(delete(ScanConfig).where(ScanConfig.project_id == project_id))
-
+        counts["rule_versions"] = self._delete_in(RuleVersion, RuleVersion.rule_id, rule_ids)
+        counts["rules"] = self._delete_for_project(Rule, project_id)
+        counts["analysis_versions"] = self._delete_for_project(AnalysisVersion, project_id)
+        counts["scan_runs"] = self._delete_for_project(ScanRun, project_id)
+        counts["scan_configs"] = self._delete_for_project(ScanConfig, project_id)
         return counts
+
+    def _delete_test_coverage_links(self, test_case_ids: list[str], coverage_line_ids: list[str]) -> int:
+        if not test_case_ids and not coverage_line_ids:
+            return 0
+        return self._delete(
+            delete(TestCoverageLink).where(
+                (TestCoverageLink.test_case_id.in_(test_case_ids))
+                | (TestCoverageLink.coverage_line_id.in_(coverage_line_ids))
+            )
+        )
+
+    def _ids_for_project(self, model: type[Any], project_id: str) -> list[str]:
+        return [
+            row[0]
+            for row in self._session.query(model.id).filter(model.project_id == project_id).all()
+        ]
+
+    def _delete_for_project(self, model: type[Any], project_id: str) -> int:
+        return self._delete(delete(model).where(model.project_id == project_id))
+
+    def _delete_in(self, model: type[Any], column: Any, ids: list[str]) -> int:
+        if not ids:
+            return 0
+        return self._delete(delete(model).where(column.in_(ids)))
 
     def _delete(self, statement: Any) -> int:
         if statement is None:

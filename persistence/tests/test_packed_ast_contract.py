@@ -138,7 +138,8 @@ def test_packed_writer_and_reader_keep_scoped_stable_node_identity(
 
     payload = session.get(AstPayload, document.ast_payload_id)
     blob = session.scalar(select(AstPayloadBlob).where(AstPayloadBlob.ast_payload_id == document.ast_payload_id))
-    assert payload is not None and blob is not None
+    assert payload is not None
+    assert blob is not None
     assert payload.root_node_key == document.root_node_key == "root"
     assert document.node_count == blob.node_count == 2
 
@@ -149,7 +150,8 @@ def test_packed_writer_and_reader_keep_scoped_stable_node_identity(
         analysis_version_id="analysis-1",
         node_id=root_id,
     )
-    assert root is not None and root.id == root_id
+    assert root is not None
+    assert root.id == root_id
     assert queries.get_node(
         project_id="other-project",
         analysis_version_id="analysis-1",

@@ -206,37 +206,9 @@ class AstQueryRepository:
             analysis_version_id=analysis_version_id,
             node_id=root_node_id,
         )
-        if packed_root is not None:
-            children_by_parent: dict[str, list[AstNodeRecord]] = {}
-            for record in packed_root.payload.records:
-                if record.parent_node_key is not None:
-                    children_by_parent.setdefault(record.parent_node_key, []).append(record)
-            for packed_children in children_by_parent.values():
-                packed_children.sort(key=lambda record: (record.sibling_ordinal, record.node_key))
-            items = [AstSubtreeNode(self._packed_node(packed_root.document, packed_root.record), 0)]
-            frontier = [packed_root.record.node_key]
-            depth = 0
-            truncated = False
-            while frontier and depth < max_depth and len(items) < max_nodes:
-                remaining = max_nodes - len(items)
-                packed_children = [
-                    child
-                    for parent_key in frontier
-                    for child in children_by_parent.get(parent_key, ())
-                ]
-                if len(packed_children) > remaining:
-                    truncated = True
-                    packed_children = packed_children[:remaining]
-                depth += 1
-                items.extend(
-                    AstSubtreeNode(self._packed_node(packed_root.document, node), depth)
-                    for node in packed_children
-                )
-                frontier = [node.node_key for node in packed_children]
-            if frontier and (depth == max_depth or len(items) == max_nodes):
-                truncated = True
-            return AstSubtreeResult(items=items, truncated=truncated)
-        return AstSubtreeResult(items=[], truncated=False)
+        if packed_root is None:
+            return AstSubtreeResult(items=[], truncated=False)
+        return self._walk_packed_subtree(packed_root, max_depth=max_depth, max_nodes=max_nodes)
 
     def search_nodes(
         self,
@@ -251,77 +223,27 @@ class AstQueryRepository:
         limit: int = 100,
     ) -> list[AstNode]:
         page_size = self._bounded_limit(limit)
-        if (start_byte is None) != (end_byte is None):
-            raise ValueError("start_byte and end_byte must be provided together")
-        if start_byte is not None and end_byte is not None and (start_byte < 0 or end_byte <= start_byte):
-            raise ValueError("search range must be non-negative and non-empty")
-
+        self._require_search_range(start_byte, end_byte)
         if document_id is not None:
-            document = self.get_document(
+            return self._search_nodes_in_document(
                 project_id=project_id,
                 analysis_version_id=analysis_version_id,
                 document_id=document_id,
+                raw_types=raw_types,
+                categories=categories,
+                start_byte=start_byte,
+                end_byte=end_byte,
+                page_size=page_size,
             )
-            if document is not None:
-                payload = self._decoded_payload_for_document(
-                    project_id=project_id,
-                    analysis_version_id=analysis_version_id,
-                    document=document,
-                )
-                if payload is not None:
-                    return [
-                        self._packed_node(document, record)
-                        for record in self._filter_packed_records(
-                            payload.records,
-                            raw_types=raw_types,
-                            categories=categories,
-                            start_byte=start_byte,
-                            end_byte=end_byte,
-                        )[:page_size]
-                    ]
-        else:
-            documents = list(
-                self._session.scalars(
-                    self._document_scope(project_id, analysis_version_id).order_by(
-                        AstDocument.source_path,
-                        AstDocument.id,
-                    )
-                )
-            )
-            blobs = self._factory.ast_payload_blobs()
-            packed_nodes: list[AstNode] = []
-            for offset in range(0, len(documents), blobs.MAX_DECODE_DOCUMENTS_PER_BATCH):
-                batch = documents[offset : offset + blobs.MAX_DECODE_DOCUMENTS_PER_BATCH]
-                decoded_by_document = blobs.decode_for_documents(
-                    project_id=project_id,
-                    analysis_version_id=analysis_version_id,
-                    document_ids=[document.id for document in batch],
-                    cache=False,
-                )
-                if len(decoded_by_document) != len(batch):
-                    raise ValueError("AST analysis contains a document without a packed payload")
-                for document in batch:
-                    records = sorted(
-                        self._filter_packed_records(
-                            decoded_by_document[document.id].records,
-                            raw_types=raw_types,
-                            categories=categories,
-                            start_byte=start_byte,
-                            end_byte=end_byte,
-                        ),
-                        key=lambda record: (
-                            record.source_range.start_byte,
-                            record.source_range.end_byte,
-                            record.node_key,
-                        ),
-                    )
-                    for record in records:
-                        packed_nodes.append(self._packed_node(document, record))
-                        if len(packed_nodes) == page_size:
-                            return packed_nodes
-            return packed_nodes
-
-        return []
+        return self._search_nodes_across_documents(
+            project_id=project_id,
+            analysis_version_id=analysis_version_id,
+            raw_types=raw_types,
+            categories=categories,
+            start_byte=start_byte,
+            end_byte=end_byte,
+            page_size=page_size,
+        )
 
     def find_containing_node(
         self,
@@ -467,6 +389,144 @@ class AstQueryRepository:
             document_id=document.id,
         )
 
+    def _walk_packed_subtree(
+        self,
+        packed_root: _PackedNodeContext,
+        *,
+        max_depth: int,
+        max_nodes: int,
+    ) -> AstSubtreeResult:
+        children_by_parent = self._children_by_parent(packed_root.payload.records)
+        items = [AstSubtreeNode(self._packed_node(packed_root.document, packed_root.record), 0)]
+        frontier = [packed_root.record.node_key]
+        depth = 0
+        truncated = False
+        while frontier and depth < max_depth and len(items) < max_nodes:
+            remaining = max_nodes - len(items)
+            packed_children = [
+                child
+                for parent_key in frontier
+                for child in children_by_parent.get(parent_key, ())
+            ]
+            if len(packed_children) > remaining:
+                truncated = True
+                packed_children = packed_children[:remaining]
+            depth += 1
+            items.extend(
+                AstSubtreeNode(self._packed_node(packed_root.document, node), depth)
+                for node in packed_children
+            )
+            frontier = [node.node_key for node in packed_children]
+        if frontier and (depth == max_depth or len(items) == max_nodes):
+            truncated = True
+        return AstSubtreeResult(items=items, truncated=truncated)
+
+    @staticmethod
+    def _children_by_parent(records: tuple[AstNodeRecord, ...]) -> dict[str, list[AstNodeRecord]]:
+        children_by_parent: dict[str, list[AstNodeRecord]] = {}
+        for record in records:
+            if record.parent_node_key is not None:
+                children_by_parent.setdefault(record.parent_node_key, []).append(record)
+        for packed_children in children_by_parent.values():
+            packed_children.sort(key=lambda record: (record.sibling_ordinal, record.node_key))
+        return children_by_parent
+
+    @staticmethod
+    def _require_search_range(start_byte: int | None, end_byte: int | None) -> None:
+        if (start_byte is None) != (end_byte is None):
+            raise ValueError("start_byte and end_byte must be provided together")
+        if start_byte is not None and end_byte is not None and (start_byte < 0 or end_byte <= start_byte):
+            raise ValueError("search range must be non-negative and non-empty")
+
+    def _search_nodes_in_document(
+        self,
+        *,
+        project_id: str,
+        analysis_version_id: str,
+        document_id: str,
+        raw_types: set[str] | None,
+        categories: set[AstNodeCategory] | None,
+        start_byte: int | None,
+        end_byte: int | None,
+        page_size: int,
+    ) -> list[AstNode]:
+        document = self.get_document(
+            project_id=project_id,
+            analysis_version_id=analysis_version_id,
+            document_id=document_id,
+        )
+        if document is None:
+            return []
+        payload = self._decoded_payload_for_document(
+            project_id=project_id,
+            analysis_version_id=analysis_version_id,
+            document=document,
+        )
+        if payload is None:
+            return []
+        return [
+            self._packed_node(document, record)
+            for record in self._filter_packed_records(
+                payload.records,
+                raw_types=raw_types,
+                categories=categories,
+                start_byte=start_byte,
+                end_byte=end_byte,
+            )[:page_size]
+        ]
+
+    def _search_nodes_across_documents(
+        self,
+        *,
+        project_id: str,
+        analysis_version_id: str,
+        raw_types: set[str] | None,
+        categories: set[AstNodeCategory] | None,
+        start_byte: int | None,
+        end_byte: int | None,
+        page_size: int,
+    ) -> list[AstNode]:
+        documents = list(
+            self._session.scalars(
+                self._document_scope(project_id, analysis_version_id).order_by(
+                    AstDocument.source_path,
+                    AstDocument.id,
+                )
+            )
+        )
+        blobs = self._factory.ast_payload_blobs()
+        packed_nodes: list[AstNode] = []
+        for offset in range(0, len(documents), blobs.MAX_DECODE_DOCUMENTS_PER_BATCH):
+            batch = documents[offset : offset + blobs.MAX_DECODE_DOCUMENTS_PER_BATCH]
+            decoded_by_document = blobs.decode_for_documents(
+                project_id=project_id,
+                analysis_version_id=analysis_version_id,
+                document_ids=[document.id for document in batch],
+                cache=False,
+            )
+            if len(decoded_by_document) != len(batch):
+                raise ValueError("AST analysis contains a document without a packed payload")
+            for document in batch:
+                records = sorted(
+                    self._filter_packed_records(
+                        decoded_by_document[document.id].records,
+                        raw_types=raw_types,
+                        categories=categories,
+                        start_byte=start_byte,
+                        end_byte=end_byte,
+                    ),
+                    key=lambda record: (
+                        record.source_range.start_byte,
+                        record.source_range.end_byte,
+                        record.node_key,
+                    ),
+                )
+                for record in records:
+                    packed_nodes.append(self._packed_node(document, record))
+                    if len(packed_nodes) == page_size:
+                        return packed_nodes
+        return packed_nodes
+
     @classmethod
     def _packed_node(cls, document: AstDocument, record: AstNodeRecord) -> AstNode:
         """Adapt a packed record to the existing ORM-shaped read contract.
@@ -543,7 +603,7 @@ class AstQueryRepository:
         try:
             decoded = base64.urlsafe_b64decode(encoded + "=" * (-len(encoded) % 4))
             value = json.loads(decoded.decode("utf-8"))
-        except (UnicodeDecodeError, ValueError, json.JSONDecodeError):
+        except ValueError:
             return None
         if (
             not isinstance(value, list)

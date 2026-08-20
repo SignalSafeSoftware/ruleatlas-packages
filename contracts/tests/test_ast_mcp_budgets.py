@@ -51,7 +51,9 @@ def test_consumption_addition_remaining_and_exhaustion_are_deterministic() -> No
         AstMcpBudgetDimension.NODES_RETURNED,
     )
     assert combined.remaining(_limits())["tool_calls"] == 0
-    assert snapshot.to_dict() == snapshot.to_dict()
+    snapshot_payload = snapshot.to_dict()
+    assert snapshot_payload["exhausted_dimensions"] == ["tool_calls", "nodes_returned"]
+    assert snapshot_payload == snapshot.to_dict()
 
 
 def test_invalid_limits_and_consumption_are_rejected() -> None:

@@ -188,8 +188,10 @@ def test_serialization_is_deterministic_and_uses_wire_enum_values() -> None:
         page=AstMcpPage(truncated=True, next_cursor="opaque"),
     )
 
-    assert response.to_dict() == response.to_dict()
     assert response.to_dict()["document"] == document.to_dict()
+    response_payload = response.to_dict()
+    assert response_payload["page"]["truncated"] is True
+    assert response_payload == response.to_dict()
     assert _file().to_dict()["status"] == "succeeded"
     assert _node().to_dict()["category"] == "document"
 

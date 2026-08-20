@@ -60,16 +60,23 @@ class AstInvestigationDecision:
     def __post_init__(self) -> None:
         require_non_blank(self.explanation, "explanation")
         require_optional_non_blank(self.proposal_summary, "proposal_summary")
+        self._validate_continue_or_terminal()
+        self._validate_no_rule()
+        self._validate_proposal()
+
+    def _validate_continue_or_terminal(self) -> None:
         if self.decision == AstInvestigationDecisionKind.CONTINUE:
             if self.next_tool_request is None:
                 raise ValueError("continue decisions require next_tool_request")
             if any(value is not None for value in (self.stop_reason, self.no_rule, self.proposal_summary)):
                 raise ValueError("continue decisions cannot contain terminal fields")
-        else:
-            if self.next_tool_request is not None:
-                raise ValueError("terminal decisions cannot contain next_tool_request")
-            if self.stop_reason is None:
-                raise ValueError("terminal decisions require stop_reason")
+            return
+        if self.next_tool_request is not None:
+            raise ValueError("terminal decisions cannot contain next_tool_request")
+        if self.stop_reason is None:
+            raise ValueError("terminal decisions require stop_reason")
+
+    def _validate_no_rule(self) -> None:
         if self.decision == AstInvestigationDecisionKind.NO_RULE:
             if self.no_rule is None:
                 raise ValueError("no_rule decisions require no_rule result")
@@ -78,14 +85,18 @@ class AstInvestigationDecision:
                 AstInvestigationStopReason.INSUFFICIENT_EVIDENCE,
             }:
                 raise ValueError("no_rule decision has incompatible stop_reason")
-        elif self.no_rule is not None:
+            return
+        if self.no_rule is not None:
             raise ValueError("no_rule result requires decision=no_rule")
+
+    def _validate_proposal(self) -> None:
         if self.decision == AstInvestigationDecisionKind.PROPOSE_RULE:
             if self.stop_reason != AstInvestigationStopReason.RULE_PROPOSED:
                 raise ValueError("propose_rule decisions require stop_reason=rule_proposed")
             if self.proposal_summary is None:
                 raise ValueError("propose_rule decisions require proposal_summary")
-        elif self.proposal_summary is not None:
+            return
+        if self.proposal_summary is not None:
             raise ValueError("proposal_summary requires decision=propose_rule")
 
     def to_dict(self) -> dict[str, object]:

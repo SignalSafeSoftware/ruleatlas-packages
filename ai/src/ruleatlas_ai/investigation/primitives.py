@@ -67,24 +67,30 @@ def require_optional_non_blank(value: str | None, field_name: str) -> None:
         require_non_blank(value, field_name)
 
 
+def _reject_forbidden_scope_key(key: str | None) -> None:
+    if key is not None and key.casefold() in _FORBIDDEN_SCOPE_KEYS:
+        raise ValueError(f"trusted scope is forbidden in tool arguments: {key}")
+
+
+def _visit_tool_argument(item: Any, *, key: str | None = None) -> None:
+    _reject_forbidden_scope_key(key)
+    if isinstance(item, dict):
+        for nested_key, nested_value in item.items():
+            if not isinstance(nested_key, str) or not nested_key.strip():
+                raise ValueError("tool argument keys must be non-blank strings")
+            _visit_tool_argument(nested_value, key=nested_key)
+        return
+    if isinstance(item, list):
+        for nested_value in item:
+            _visit_tool_argument(nested_value)
+        return
+    if item is not None and not isinstance(item, (str, int, float, bool)):
+        raise ValueError("tool arguments must contain JSON-compatible values")
+
+
 def validate_model_tool_arguments(value: dict[str, Any]) -> None:
     """Reject trusted scope and non-JSON values in model-authored tool arguments."""
-
-    def visit(item: Any, *, key: str | None = None) -> None:
-        if key is not None and key.casefold() in _FORBIDDEN_SCOPE_KEYS:
-            raise ValueError(f"trusted scope is forbidden in tool arguments: {key}")
-        if isinstance(item, dict):
-            for nested_key, nested_value in item.items():
-                if not isinstance(nested_key, str) or not nested_key.strip():
-                    raise ValueError("tool argument keys must be non-blank strings")
-                visit(nested_value, key=nested_key)
-        elif isinstance(item, list):
-            for nested_value in item:
-                visit(nested_value)
-        elif item is not None and not isinstance(item, (str, int, float, bool)):
-            raise ValueError("tool arguments must contain JSON-compatible values")
-
-    visit(value)
+    _visit_tool_argument(value)
 
 
 __all__ = [

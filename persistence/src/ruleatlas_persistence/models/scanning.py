@@ -5,7 +5,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from ._base import (
+    FK_ANALYSIS_VERSIONS_ID,
     FK_PROJECTS_ID,
+    FK_SCAN_CONFIGS_ID,
     FK_SCAN_RUNS_ID,
     FK_SOURCE_FILES_ID,
     JSON,
@@ -97,7 +99,7 @@ class AnalysisVersion(Base, TimestampMixin):
         nullable=False,
     )
     scan_run_id: Mapped[str | None] = mapped_column(ForeignKey(FK_SCAN_RUNS_ID))
-    scan_config_id: Mapped[str | None] = mapped_column(ForeignKey("scan_configs.id"))
+    scan_config_id: Mapped[str | None] = mapped_column(ForeignKey(FK_SCAN_CONFIGS_ID))
     summary_json: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     superseded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -130,7 +132,7 @@ class SourceLocation(Base, TimestampMixin):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
     project_id: Mapped[str] = mapped_column(ForeignKey(FK_PROJECTS_ID), nullable=False)
-    scan_config_id: Mapped[str | None] = mapped_column(ForeignKey("scan_configs.id"))
+    scan_config_id: Mapped[str | None] = mapped_column(ForeignKey(FK_SCAN_CONFIGS_ID))
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     source_type: Mapped[SourceType] = mapped_column(Enum(SourceType, **STR_ENUM_COLUMN_KW), nullable=False)
     location_type: Mapped[SourceLocationType] = mapped_column(
@@ -152,7 +154,7 @@ class ScanRun(Base, TimestampMixin):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
     project_id: Mapped[str] = mapped_column(ForeignKey(FK_PROJECTS_ID), nullable=False)
-    scan_config_id: Mapped[str | None] = mapped_column(ForeignKey("scan_configs.id"))
+    scan_config_id: Mapped[str | None] = mapped_column(ForeignKey(FK_SCAN_CONFIGS_ID))
     status: Mapped[ScanStatus] = mapped_column(
         Enum(ScanStatus, **STR_ENUM_COLUMN_KW), default=ScanStatus.QUEUED, nullable=False
     )
@@ -262,7 +264,7 @@ class CoverageReport(Base, TimestampMixin):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
     project_id: Mapped[str] = mapped_column(ForeignKey(FK_PROJECTS_ID), nullable=False)
-    analysis_version_id: Mapped[str | None] = mapped_column(ForeignKey("analysis_versions.id"))
+    analysis_version_id: Mapped[str | None] = mapped_column(ForeignKey(FK_ANALYSIS_VERSIONS_ID))
     scan_run_id: Mapped[str | None] = mapped_column(ForeignKey(FK_SCAN_RUNS_ID))
     source_file_id: Mapped[str | None] = mapped_column(ForeignKey(FK_SOURCE_FILES_ID))
     format: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -345,7 +347,7 @@ class RuntimeEvidenceImport(Base, TimestampMixin):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
     project_id: Mapped[str] = mapped_column(ForeignKey(FK_PROJECTS_ID), nullable=False)
-    analysis_version_id: Mapped[str | None] = mapped_column(ForeignKey("analysis_versions.id"))
+    analysis_version_id: Mapped[str | None] = mapped_column(ForeignKey(FK_ANALYSIS_VERSIONS_ID))
     scan_run_id: Mapped[str | None] = mapped_column(ForeignKey(FK_SCAN_RUNS_ID))
     source_label: Mapped[str] = mapped_column(String(255), nullable=False)
     format: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -385,7 +387,7 @@ class AnalysisManifest(Base, TimestampMixin):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
     project_id: Mapped[str] = mapped_column(ForeignKey(FK_PROJECTS_ID), nullable=False)
     scan_run_id: Mapped[str] = mapped_column(ForeignKey(FK_SCAN_RUNS_ID), nullable=False)
-    analysis_version_id: Mapped[str | None] = mapped_column(ForeignKey("analysis_versions.id"))
+    analysis_version_id: Mapped[str | None] = mapped_column(ForeignKey(FK_ANALYSIS_VERSIONS_ID))
     manifest_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     immutable: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     file_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
@@ -465,7 +467,7 @@ class CompositePipelineRun(Base, TimestampMixin):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
     project_id: Mapped[str] = mapped_column(ForeignKey(FK_PROJECTS_ID), nullable=False)
-    analysis_version_id: Mapped[str] = mapped_column(ForeignKey("analysis_versions.id"), nullable=False)
+    analysis_version_id: Mapped[str] = mapped_column(ForeignKey(FK_ANALYSIS_VERSIONS_ID), nullable=False)
     scan_run_id: Mapped[str | None] = mapped_column(ForeignKey(FK_SCAN_RUNS_ID))
     mode: Mapped[str] = mapped_column(String(32), nullable=False, default="full")
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="running")
