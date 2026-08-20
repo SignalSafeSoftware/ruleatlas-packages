@@ -28,16 +28,22 @@ jobs:
           python-version: "3.12"
       - name: Sync (${{ matrix.package }})
         working-directory: ${{ matrix.package }}
-        run: uv sync --all-extras
+        run: |
+          uv venv --seed
+          uv export --all-extras --frozen --no-emit-project --no-emit-workspace -o requirements.txt
+          uv pip install --python .venv/bin/python --require-hashes --no-build --no-deps -r requirements.txt
+          uv build --all-packages --wheel --out-dir "${RUNNER_TEMP}/ra-wheels" "${GITHUB_WORKSPACE}"
+          python "${GITHUB_WORKSPACE}/scripts/hash_local_wheels.py" "${RUNNER_TEMP}/ra-wheels" -o "${RUNNER_TEMP}/ra-wheels.txt"
+          uv pip install --python .venv/bin/python --require-hashes --no-build --no-deps -r "${RUNNER_TEMP}/ra-wheels.txt"
       - name: Ruff (${{ matrix.package }})
         working-directory: ${{ matrix.package }}
-        run: uv run --all-extras ruff check src
+        run: .venv/bin/ruff check src
       - name: Mypy (${{ matrix.package }}, if configured)
         working-directory: ${{ matrix.package }}
-        run: if grep -q '\[tool.mypy\]' pyproject.toml; then uv run --all-extras mypy src; else echo "no mypy config - skipping"; fi
+        run: if grep -q '\[tool.mypy\]' pyproject.toml; then .venv/bin/mypy src; else echo "no mypy config - skipping"; fi
       - name: Pytest (${{ matrix.package }})
         working-directory: ${{ matrix.package }}
-        run: uv run --all-extras python -m pytest -q
+        run: .venv/bin/python -m pytest -q
       - name: Build wheel + sdist (${{ matrix.package }})
         working-directory: ${{ matrix.package }}
         run: uv build --out-dir "$PWD/dist"
@@ -50,7 +56,15 @@ jobs:
         uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           python-version: "3.12"
+      - name: Test release tag script
+        run: python -m unittest scripts.test_verify_release_tag scripts.test_hash_local_wheels
       - name: Sync workspace
-        run: uv sync --all-extras
+        run: |
+          uv venv --seed
+          uv export --all-extras --frozen --group dev --no-emit-workspace -o requirements.txt
+          uv pip install --python .venv/bin/python --require-hashes --no-build --no-deps -r requirements.txt
+          uv build --all-packages --wheel --out-dir "${RUNNER_TEMP}/ra-wheels" .
+          python scripts/hash_local_wheels.py "${RUNNER_TEMP}/ra-wheels" -o "${RUNNER_TEMP}/ra-wheels.txt"
+          uv pip install --python .venv/bin/python --require-hashes --no-build --no-deps -r "${RUNNER_TEMP}/ra-wheels.txt"
       - name: Enforce cross-package DAG
-        run: uv run --with 'import-linter<2.0' lint-imports --config .importlinter
+        run: .venv/bin/lint-imports --config .importlinter

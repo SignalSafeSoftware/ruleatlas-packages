@@ -32,22 +32,35 @@ jobs:
         uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           python-version: "3.12"
+      - name: Test release tag script
+        run: python -m unittest scripts.test_verify_release_tag scripts.test_hash_local_wheels
       - name: Validate release tag
         id: tag
         run: python scripts/verify-release-tag.py "$GITHUB_REF_NAME" --github-output "$GITHUB_OUTPUT"
       - name: Sync workspace
-        run: uv sync --all-extras
+        run: |
+          uv venv --seed
+          uv export --all-extras --frozen --group dev --no-emit-workspace -o requirements.txt
+          uv pip install --python .venv/bin/python --require-hashes --no-build --no-deps -r requirements.txt
+          uv build --all-packages --wheel --out-dir "${RUNNER_TEMP}/ra-wheels" .
+          python scripts/hash_local_wheels.py "${RUNNER_TEMP}/ra-wheels" -o "${RUNNER_TEMP}/ra-wheels.txt"
+          uv pip install --python .venv/bin/python --require-hashes --no-build --no-deps -r "${RUNNER_TEMP}/ra-wheels.txt"
       - name: Enforce cross-package DAG
-        run: uv run --with 'import-linter<2.0' lint-imports --config .importlinter
+        run: .venv/bin/lint-imports --config .importlinter
       - name: Validate all packages
         run: |
           for package in contracts persistence discovery-core claims extraction exports ai demo; do
             (
               cd "$package"
-              uv sync --all-extras
-              uv run --all-extras ruff check src
-              if grep -q '\[tool.mypy\]' pyproject.toml; then uv run --all-extras mypy src; fi
-              uv run --all-extras python -m pytest -q
+              uv venv --seed
+              uv export --all-extras --frozen --no-emit-project --no-emit-workspace -o requirements.txt
+              uv pip install --python .venv/bin/python --require-hashes --no-build --no-deps -r requirements.txt
+              uv build --all-packages --wheel --out-dir "${RUNNER_TEMP}/ra-wheels-${package}" "${GITHUB_WORKSPACE}"
+              python "${GITHUB_WORKSPACE}/scripts/hash_local_wheels.py" "${RUNNER_TEMP}/ra-wheels-${package}" -o "${RUNNER_TEMP}/ra-wheels-${package}.txt"
+              uv pip install --python .venv/bin/python --require-hashes --no-build --no-deps -r "${RUNNER_TEMP}/ra-wheels-${package}.txt"
+              .venv/bin/ruff check src
+              if grep -q '\[tool.mypy\]' pyproject.toml; then .venv/bin/mypy src; fi
+              .venv/bin/python -m pytest -q
               uv build --out-dir "$PWD/dist"
             )
           done

@@ -84,18 +84,18 @@ From the repository root:
 
 ```bash
 git status --short --branch
-uv sync --all-extras
-uv run --with 'import-linter<2.0' lint-imports --config .importlinter
+uv sync --frozen --all-extras --group dev
+uv run --frozen --all-extras --group dev --no-sync lint-imports --config .importlinter
 ```
 
 For every workspace member:
 
 ```bash
 cd <package>
-uv sync --all-extras
-uv run ruff check src
-uv run mypy src          # only when [tool.mypy] is configured
-uv run python -m pytest -q
+uv sync --frozen --all-extras
+uv run --frozen --all-extras --no-sync ruff check src
+uv run --frozen --all-extras --no-sync mypy src          # only when [tool.mypy] is configured
+uv run --frozen --all-extras --no-sync python -m pytest -q
 uv build
 ```
 
