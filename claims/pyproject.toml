@@ -21,7 +21,7 @@ classifiers = [
 dependencies = [
   "ruleatlas-contracts>=0.1.0",
   "ruleatlas-persistence>=0.1.0",
-  "sqlalchemy>=2.0",
+  "sqlalchemy>=2.0.52",
 ]
 
 [project.optional-dependencies]
