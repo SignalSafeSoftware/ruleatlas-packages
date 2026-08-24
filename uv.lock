@@ -19,7 +19,7 @@ members = [
 ]
 
 [manifest.dependency-groups]
-dev = [{ name = "import-linter", specifier = ">=1.12.1,<2" }]
+dev = [{ name = "import-linter", specifier = ">=2.13,<3" }]
 
 [[package]]
 name = "annotated-types"
@@ -470,16 +470,17 @@ wheels = [
 
 [[package]]
 name = "import-linter"
-version = "1.12.1"
+version = "2.13"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
     { name = "grimp" },
+    { name = "rich" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/7f/bc/0fd5d1e60a61b638ba45860856396f63e485e6e41b5dc39b7c36c3066472/import-linter-1.12.1.tar.gz", hash = "sha256:3aa4da5bbed4b2e575fd2479bc7962090ae95666676fb872a4819a293b973463", size = 28402, upload-time = "2023-10-30T12:30:53.251Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/97/c6/42962eb043df4d6984c1540220735b20442572fe37dab5e65ac807c939b9/import_linter-2.13.tar.gz", hash = "sha256:13af4a1d6b06044c58ea784e8732fd7fe48eec821a75feb4d6a1a2de36dd5c27", size = 1279761, upload-time = "2026-07-03T14:00:31.285Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/fd/ef/8caf983bfb4ddaa21524ccc402c15c4dd47377d66983cfae19ac77991c63/import_linter-1.12.1-py3-none-any.whl", hash = "sha256:92f5ddec77c523bd95c0af88d3fdb354b705a776f7a0e59a7b25b035828a0257", size = 40760, upload-time = "2023-10-30T12:30:51.936Z" },
+    { url = "https://files.pythonhosted.org/packages/88/13/e7725e6eb32607fd4af51ccf3edfe835826e5cdf783b4d7fdc8f459196ae/import_linter-2.13-py3-none-any.whl", hash = "sha256:c0372e7ee5e15657bc06a8e841445e13237afd738a672d26863dc927af9f0bf5", size = 638185, upload-time = "2026-07-03T14:00:29.676Z" },
 ]
 
 [[package]]
