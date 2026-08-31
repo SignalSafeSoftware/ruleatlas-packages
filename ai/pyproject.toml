@@ -23,7 +23,7 @@ dependencies = [
   "ruleatlas-claims>=0.1.0",
   "ruleatlas-persistence>=0.1.0",
   "sqlalchemy>=2.0.52",
-  "pydantic>=2.8",
+  "pydantic>=2.13.5",
   "httpx>=0.27.0",
 ]
 
