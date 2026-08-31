@@ -20,5 +20,5 @@ members = [
 
 [dependency-groups]
 dev = [
-  "import-linter>=2.13,<3",
+  "import-linter>=2.14,<3",
 ]
