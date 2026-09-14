@@ -382,6 +382,8 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/69/f5/7af1dd74b9608a85274414fc423a7162844492b198ece3fe31f4e1f88237/grimp-3.17-cp313-cp313-win32.whl", hash = "sha256:34369739ed293accbb674494ae932351516b316e8e85d1d333d4c51796af846a", size = 1874244, upload-time = "2026-09-04T11:29:21.693Z" },
     { url = "https://files.pythonhosted.org/packages/8b/d4/af497adddfcf11f9bd4ab273625a49022bf5ba4f5fc389589f4e6edc67b9/grimp-3.17-cp313-cp313-win_amd64.whl", hash = "sha256:d21b859c50418bdb48b403a84450650fa7aab3102f3212d00d3c21c76a982167", size = 1998225, upload-time = "2026-09-04T11:29:10.5Z" },
     { url = "https://files.pythonhosted.org/packages/e2/2a/07fd537997281049af2390fc8641de5ae063ae4972cb6fcec85873674595/grimp-3.17-cp313-cp313-win_arm64.whl", hash = "sha256:206cd9f7c757b97934f48ba2b8ec6d649725fd6314d6b182dd327b19b4f35707", size = 1922071, upload-time = "2026-09-04T11:28:58.34Z" },
+    { url = "https://files.pythonhosted.org/packages/39/e0/e11ea5aeb62534c9706e17952d142aa844ce5659e2d66b4b8ba9377407d6/grimp-3.17-cp314-cp314-macosx_10_12_x86_64.whl", hash = "sha256:0100ff6f08067c8eb8a77dd1433af5e173aea8dbf6a6b76f5372a3b49f2e0a43", size = 2161696, upload-time = "2026-09-11T10:36:49.104Z" },
+    { url = "https://files.pythonhosted.org/packages/4b/d6/ddf82f4428d8bdc54ced0db244cbf5d8e5638490c3ed6a8b9f5db55dfa51/grimp-3.17-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:67ada40a5c1cf4321183c0b0cd0393658ccd04b845caed002ac81dc2fdef828e", size = 2107301, upload-time = "2026-09-11T10:36:46.459Z" },
     { url = "https://files.pythonhosted.org/packages/86/1a/1dd0d9d2751e8078547e1cb7131e13d9624a2ea60700d926b3d624c15825/grimp-3.17-cp314-cp314-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:baa385915a4c17948bfb25f77509cbbfb33795f321d1c5ca7cc602e34ed58e99", size = 2278433, upload-time = "2026-09-04T11:27:03.075Z" },
     { url = "https://files.pythonhosted.org/packages/58/71/3768fd253e7455a83d668193055691c82d3a4d434047116c572a27d2bd39/grimp-3.17-cp314-cp314-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:8322a435b5ee97ff3db823df36cbefea569faec505cc0ca66223c27b4b44cca6", size = 2221152, upload-time = "2026-09-04T11:27:12.642Z" },
     { url = "https://files.pythonhosted.org/packages/b4/4f/907a130e87554d57be14c2a7cedeb818d0ef519064877297d19636735f6b/grimp-3.17-cp314-cp314-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:cb953c21beb6ac85a59b5b54128be7fdddd89396d34b3c5705cf59829a85b431", size = 2371546, upload-time = "2026-09-04T11:27:41.195Z" },
@@ -1257,7 +1259,7 @@ requires-dist = [
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.16.6" },
     { name = "ruleatlas-contracts", editable = "contracts" },
     { name = "sqlalchemy", specifier = ">=2.0.52" },
-    { name = "sqlphilosophy", specifier = ">=0.2.1,<0.3.0" },
+    { name = "sqlphilosophy", specifier = ">=0.3.0,<0.4.0" },
     { name = "twine", marker = "extra == 'dev'", specifier = ">=7.0.0" },
     { name = "zstandard", specifier = ">=0.25.0,<0.26.0" },
 ]
@@ -1322,15 +1324,15 @@ wheels = [
 
 [[package]]
 name = "sqlphilosophy"
-version = "0.2.1"
+version = "0.3.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "servicephilosophy" },
     { name = "sqlalchemy" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/8d/47/4bfdacc6652e6a154da9f2ce76eb6060fcf47b5321edc639a7ee26ea38ba/sqlphilosophy-0.2.1.tar.gz", hash = "sha256:e67369af20b1c1c724a59578684703dd1ad32770f616f1cbf3f2151d9a862808", size = 28650, upload-time = "2026-08-30T10:48:30.025Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/d7/e9/1a9fe89d6b482c7b5f8fb6ad55f715043348e1b37f95fc7f7e786be69622/sqlphilosophy-0.3.0.tar.gz", hash = "sha256:e1e466bd804c87a73c5c7a89e05101538300899ac679acac45c86bca4e4adf34", size = 29634, upload-time = "2026-09-08T07:46:44.524Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/2a/d8/343e790bf97fce7ca5e56527f52d22a24353ef248fb2efc2fad36069acb7/sqlphilosophy-0.2.1-py3-none-any.whl", hash = "sha256:9c43ad619e81b269428818dcf57d3edf0ca5c34e2a0008f661c16add94fd05b5", size = 33119, upload-time = "2026-08-30T10:48:28.679Z" },
+    { url = "https://files.pythonhosted.org/packages/5c/46/f30d5e0455ff1c79685235092ad698a4833ffbc112a6185d6cf5ee8b1073/sqlphilosophy-0.3.0-py3-none-any.whl", hash = "sha256:2bb208121d7993bf903db64deda915627780b7644878abc721d7b2348900e2a2", size = 34344, upload-time = "2026-09-08T07:46:43.228Z" },
 ]
 
 [[package]]
