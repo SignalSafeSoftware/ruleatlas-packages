@@ -20,3 +20,9 @@ venv/
 
 # OS / editor
 .DS_Store
+
+# Local measured coverage reports
+.coverage
+.coverage.*
+coverage-reports/
+.scannerwork/

@@ -20,5 +20,6 @@ members = [
 
 [dependency-groups]
 dev = [
+  "coverage==7.16.2",
   "import-linter>=2.15,<3",
 ]
