@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, cast
 
 from sqlalchemy import Select, func, or_
 from sqlalchemy.orm import Session
+from sqlphilosophy.sync.query import StatementQueryBuilder
 from sqlphilosophy.sync.repository import BaseRepository
 
 from ruleatlas_persistence.models import (
@@ -33,15 +34,15 @@ class AuditRepository(BaseRepository[AuditEvent, "RepositoryFactory"]):
         from ruleatlas_persistence.repositories.factory import RepositoryFactory
 
         stmt = RepositoryFactory(session).audit().statement().where(AuditEvent.project_id == project_id)
-        if event_type:
-            stmt = stmt.where(AuditEvent.event_type == event_type)
-        if actor_user_id:
-            stmt = stmt.where(AuditEvent.actor_user_id == actor_user_id)
-        if from_date is not None:
-            stmt = stmt.where(AuditEvent.created_at >= from_date)
-        if to_date is not None:
-            stmt = stmt.where(AuditEvent.created_at <= to_date)
-        return cast(Select[tuple[AuditEvent]], stmt.order_by(AuditEvent.created_at.desc()).build_select())
+        stmt = AuditRepository._filtered_statement(
+            stmt,
+            event_type=event_type,
+            actor_user_id=actor_user_id,
+            from_date=from_date,
+            to_date=to_date,
+            limit=None,
+        )
+        return cast(Select[tuple[AuditEvent]], stmt.build_select())
 
     @staticmethod
     def build_org_statement(
@@ -60,15 +61,15 @@ class AuditRepository(BaseRepository[AuditEvent, "RepositoryFactory"]):
         if project_ids:
             filters.append(AuditEvent.project_id.in_(project_ids))
         stmt = RepositoryFactory(session).audit().statement().where(or_(*filters))
-        if event_type:
-            stmt = stmt.where(AuditEvent.event_type == event_type)
-        if actor_user_id:
-            stmt = stmt.where(AuditEvent.actor_user_id == actor_user_id)
-        if from_date is not None:
-            stmt = stmt.where(AuditEvent.created_at >= from_date)
-        if to_date is not None:
-            stmt = stmt.where(AuditEvent.created_at <= to_date)
-        return cast(Select[tuple[AuditEvent]], stmt.order_by(AuditEvent.created_at.desc()).build_select())
+        stmt = AuditRepository._filtered_statement(
+            stmt,
+            event_type=event_type,
+            actor_user_id=actor_user_id,
+            from_date=from_date,
+            to_date=to_date,
+            limit=None,
+        )
+        return cast(Select[tuple[AuditEvent]], stmt.build_select())
 
     def __init__(self, session: Session, factory: RepositoryFactory) -> None:
         super().__init__(AuditEvent, session, factory)
@@ -124,17 +125,9 @@ class AuditRepository(BaseRepository[AuditEvent, "RepositoryFactory"]):
         limit: int | None = None,
     ) -> list[AuditEvent]:
         stmt = self.statement().where(AuditEvent.project_id == project_id)
-        if event_type:
-            stmt = stmt.where(AuditEvent.event_type == event_type)
-        if actor_user_id:
-            stmt = stmt.where(AuditEvent.actor_user_id == actor_user_id)
-        if from_date is not None:
-            stmt = stmt.where(AuditEvent.created_at >= from_date)
-        if to_date is not None:
-            stmt = stmt.where(AuditEvent.created_at <= to_date)
-        stmt = stmt.order_by(AuditEvent.created_at.desc())
-        if limit is not None:
-            stmt = stmt.limit(limit)
+        stmt = self._filtered_statement(
+            stmt, event_type=event_type, actor_user_id=actor_user_id, from_date=from_date, to_date=to_date, limit=limit
+        )
         return list(stmt.scalars().all())
 
     def count_by_event_type_for_project(self, project_id: str) -> list[tuple[str, int]]:
@@ -207,17 +200,9 @@ class AuditRepository(BaseRepository[AuditEvent, "RepositoryFactory"]):
         if project_ids:
             filters.append(AuditEvent.project_id.in_(project_ids))
         stmt = self.statement().where(or_(*filters))
-        if event_type:
-            stmt = stmt.where(AuditEvent.event_type == event_type)
-        if actor_user_id:
-            stmt = stmt.where(AuditEvent.actor_user_id == actor_user_id)
-        if from_date is not None:
-            stmt = stmt.where(AuditEvent.created_at >= from_date)
-        if to_date is not None:
-            stmt = stmt.where(AuditEvent.created_at <= to_date)
-        stmt = stmt.order_by(AuditEvent.created_at.desc())
-        if limit is not None:
-            stmt = stmt.limit(limit)
+        stmt = self._filtered_statement(
+            stmt, event_type=event_type, actor_user_id=actor_user_id, from_date=from_date, to_date=to_date, limit=limit
+        )
         return list(stmt.scalars().all())
 
     def org_statement(
@@ -239,6 +224,29 @@ class AuditRepository(BaseRepository[AuditEvent, "RepositoryFactory"]):
             from_date=from_date,
             to_date=to_date,
         )
+
+    @staticmethod
+    def _filtered_statement(
+        stmt: StatementQueryBuilder[AuditEvent],
+        *,
+        event_type: str | None,
+        actor_user_id: str | None,
+        from_date: datetime | None,
+        to_date: datetime | None,
+        limit: int | None,
+    ) -> StatementQueryBuilder[AuditEvent]:
+        if event_type:
+            stmt = stmt.where(AuditEvent.event_type == event_type)
+        if actor_user_id:
+            stmt = stmt.where(AuditEvent.actor_user_id == actor_user_id)
+        if from_date is not None:
+            stmt = stmt.where(AuditEvent.created_at >= from_date)
+        if to_date is not None:
+            stmt = stmt.where(AuditEvent.created_at <= to_date)
+        stmt = stmt.order_by(AuditEvent.created_at.desc())
+        if limit is not None:
+            stmt = stmt.limit(limit)
+        return stmt
 
     def record_event(self, event: AuditEvent) -> AuditEvent:
         self.add(event)

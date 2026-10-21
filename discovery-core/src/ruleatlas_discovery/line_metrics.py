@@ -73,32 +73,7 @@ def count_lines_in_file(
     if lines is None:
         return None
 
-    counters = {
-        "python": _count_python,
-        "typescript": _count_c_style,
-        "tsx": _count_c_style,
-        "javascript": _count_c_style,
-        "jsx": _count_c_style,
-        "css": _count_c_style,
-        "scss": _count_c_style,
-        "sql": _count_sql,
-        "shell": _count_hash_comment,
-        "yaml": _count_hash_comment,
-        "toml": _count_hash_comment,
-        "ini": _count_hash_comment,
-        "properties": _count_hash_comment,
-        "config": _count_hash_comment,
-        "gherkin": _count_hash_comment,
-        "markdown": _count_markdown,
-        "html": _count_html,
-        "xml": _count_html,
-        "json": _count_data_lines,
-    }
-    if style and style not in {CommentStyle.UNSUPPORTED, CommentStyle.UNSUPPORTED.value}:
-        counter = _counter_for_comment_style(style)
-    else:
-        counter = counters.get(lang, _count_fallback)
-    return counter(lines)
+    return _counter_for_language(lang, style)(lines)
 
 
 def count_lines_in_text(
@@ -111,6 +86,10 @@ def count_lines_in_text(
     lines = text.splitlines()
     lang = language.lower()
     style = comment_style
+    return _counter_for_language(lang, style)(lines)
+
+
+def _counter_for_language(language: str, style: CommentStyle | str | None) -> Callable[[list[str]], LineMetrics]:
     counters = {
         "python": _count_python,
         "typescript": _count_c_style,
@@ -135,8 +114,8 @@ def count_lines_in_text(
     if style and style not in {CommentStyle.UNSUPPORTED, CommentStyle.UNSUPPORTED.value}:
         counter = _counter_for_comment_style(style)
     else:
-        counter = counters.get(lang, _count_fallback)
-    return counter(lines)
+        counter = counters.get(language, _count_fallback)
+    return counter
 
 
 def _finalize(lines: list[str], code: int, comment: int, blank: int) -> LineMetrics:

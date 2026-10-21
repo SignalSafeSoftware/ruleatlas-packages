@@ -8,6 +8,7 @@ context (``ruleatlas.application.extraction.heuristic_claim_extraction``) so the
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Iterator
 
 from ruleatlas_contracts.claims import ClaimDraft as ClaimDraft
 from ruleatlas_contracts.enums import SourceClaimRole, SourceClaimStatus
@@ -26,23 +27,10 @@ def claim_canonical_key(provider_key: str, path: str, text: str, start_line: int
     return f"claim:{provider_key}:{digest}"
 
 
-def persist_claim(
-    session: Session,
-    *,
-    project_id: str,
-    analysis_version_id: str,
-    scan_run_id: str | None,
-    draft: ClaimDraft,
+def _claim_row(
+    *, project_id: str, analysis_version_id: str, scan_run_id: str | None, draft: ClaimDraft, key: str
 ) -> SourceClaim:
-    key = claim_canonical_key(
-        draft.provider_key, draft.source_path or "", draft.claim_text, draft.start_line
-    )
-    existing = RepositoryFactory(session).source_claims_structured().get_by_canonical_key(
-        analysis_version_id, key
-    )
-    if existing is not None:
-        return existing
-    row = SourceClaim(
+    return SourceClaim(
         project_id=project_id,
         analysis_version_id=analysis_version_id,
         scan_run_id=scan_run_id,
@@ -68,22 +56,46 @@ def persist_claim(
         attributes_json=dict(draft.attributes),
         is_canonical=False,
     )
+
+
+def _claim_evidence(row: SourceClaim, draft: ClaimDraft) -> Iterator[SourceClaimEvidence]:
+    for item in draft.evidence:
+        yield SourceClaimEvidence(
+            source_claim_id=row.id,
+            evidence_kind=str(item.get("evidence_kind") or "source_span"),
+            reference_path=str(item.get("reference_path") or draft.source_path or ""),
+            start_line=item.get("start_line"),
+            end_line=item.get("end_line"),
+            excerpt=item.get("excerpt"),
+            graph_node_id=item.get("graph_node_id"),
+            graph_edge_id=item.get("graph_edge_id"),
+            attributes_json=dict(item.get("attributes") or {}),
+        )
+
+
+def persist_claim(
+    session: Session,
+    *,
+    project_id: str,
+    analysis_version_id: str,
+    scan_run_id: str | None,
+    draft: ClaimDraft,
+) -> SourceClaim:
+    key = claim_canonical_key(
+        draft.provider_key, draft.source_path or "", draft.claim_text, draft.start_line
+    )
+    existing = RepositoryFactory(session).source_claims_structured().get_by_canonical_key(
+        analysis_version_id, key
+    )
+    if existing is not None:
+        return existing
+    row = _claim_row(
+        project_id=project_id, analysis_version_id=analysis_version_id, scan_run_id=scan_run_id, draft=draft, key=key
+    )
     session.add(row)
     session.flush()
-    for item in draft.evidence:
-        session.add(
-            SourceClaimEvidence(
-                source_claim_id=row.id,
-                evidence_kind=str(item.get("evidence_kind") or "source_span"),
-                reference_path=str(item.get("reference_path") or draft.source_path or ""),
-                start_line=item.get("start_line"),
-                end_line=item.get("end_line"),
-                excerpt=item.get("excerpt"),
-                graph_node_id=item.get("graph_node_id"),
-                graph_edge_id=item.get("graph_edge_id"),
-                attributes_json=dict(item.get("attributes") or {}),
-            )
-        )
+    for evidence in _claim_evidence(row, draft):
+        session.add(evidence)
     session.commit()
     session.refresh(row)
     return row
@@ -125,31 +137,12 @@ def persist_claims(
     for draft, key in zip(drafts, keys, strict=True):
         row = rows_by_key.get(key)
         if row is None:
-            row = SourceClaim(
+            row = _claim_row(
                 project_id=project_id,
                 analysis_version_id=analysis_version_id,
                 scan_run_id=scan_run_id,
-                canonical_key=key,
-                claim_text=draft.claim_text,
-                actor=draft.actor,
-                condition_text=draft.condition_text,
-                action_text=draft.action_text,
-                result_text=draft.result_text,
-                exception_text=draft.exception_text,
-                subject_text=draft.subject_text,
-                state_transition=draft.state_transition,
-                claim_role=draft.claim_role,
-                status=SourceClaimStatus.CANDIDATE.value,
-                confidence=draft.confidence,
-                provider_key=draft.provider_key,
-                provider_version=draft.provider_version,
-                schema_version="1",
-                source_path=draft.source_path,
-                start_line=draft.start_line,
-                end_line=draft.end_line,
-                graph_node_id=draft.graph_node_id,
-                attributes_json=dict(draft.attributes),
-                is_canonical=False,
+                draft=draft,
+                key=key,
             )
             rows_by_key[key] = row
             created_by_key[key] = row
@@ -167,20 +160,7 @@ def persist_claims(
         # Later duplicate drafts are represented by the same new row; only the
         # first draft contributes evidence, as in repeated persist_claim calls.
         created_by_key.pop(key)
-        for item in draft.evidence:
-            evidence_rows.append(
-                SourceClaimEvidence(
-                    source_claim_id=row.id,
-                    evidence_kind=str(item.get("evidence_kind") or "source_span"),
-                    reference_path=str(item.get("reference_path") or draft.source_path or ""),
-                    start_line=item.get("start_line"),
-                    end_line=item.get("end_line"),
-                    excerpt=item.get("excerpt"),
-                    graph_node_id=item.get("graph_node_id"),
-                    graph_edge_id=item.get("graph_edge_id"),
-                    attributes_json=dict(item.get("attributes") or {}),
-                )
-            )
+        evidence_rows.extend(_claim_evidence(row, draft))
     if evidence_rows:
         session.add_all(evidence_rows)
     session.flush()
