@@ -32,7 +32,8 @@ def test_file_resolved_style_fallback_does_not_replace_text_language_policy(tmp_
     text = "# comment\nvalue\n"
     path.write_text(text, encoding="utf-8")
     file_metrics = count_lines_in_file(path, "python")
-    assert file_metrics is not None and file_metrics.comment_lines == 0
+    assert file_metrics is not None
+    assert file_metrics.comment_lines == 0
     assert count_lines_in_file(path, "python", comment_style="") == file_metrics
     assert count_lines_in_text(text, "python", comment_style="").comment_lines == 1
     assert count_lines_in_file(path, "python", comment_style=CommentStyle.UNSUPPORTED) == count_lines_in_text(

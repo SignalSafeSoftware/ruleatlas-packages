@@ -106,10 +106,11 @@ def test_evidence_construction_stays_lazy_with_original_failure_mutations(batch:
                 {"attributes": object()},
             ],
         )
-        with pytest.raises(TypeError):
-            if batch:
+        if batch:
+            with pytest.raises(TypeError):
                 persist_claims(session, project_id="p", analysis_version_id="a", scan_run_id=None, drafts=[draft])
-            else:
+        else:
+            with pytest.raises(TypeError):
                 persist_claim(session, project_id="p", analysis_version_id="a", scan_run_id=None, draft=draft)
         pending = [item.excerpt for item in session.new if isinstance(item, SourceClaimEvidence)]
         assert pending == ([] if batch else ["first"])
