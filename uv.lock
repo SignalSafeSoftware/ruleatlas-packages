@@ -1259,7 +1259,7 @@ requires-dist = [
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.16.6" },
     { name = "ruleatlas-contracts", editable = "contracts" },
     { name = "sqlalchemy", specifier = ">=2.0.52" },
-    { name = "sqlphilosophy", specifier = ">=0.2.1,<0.3.0" },
+    { name = "sqlphilosophy", specifier = ">=0.3.0,<0.4.0" },
     { name = "twine", marker = "extra == 'dev'", specifier = ">=7.0.0" },
     { name = "zstandard", specifier = ">=0.25.0,<0.26.0" },
 ]
@@ -1324,15 +1324,15 @@ wheels = [
 
 [[package]]
 name = "sqlphilosophy"
-version = "0.2.1"
+version = "0.3.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "servicephilosophy" },
     { name = "sqlalchemy" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/8d/47/4bfdacc6652e6a154da9f2ce76eb6060fcf47b5321edc639a7ee26ea38ba/sqlphilosophy-0.2.1.tar.gz", hash = "sha256:e67369af20b1c1c724a59578684703dd1ad32770f616f1cbf3f2151d9a862808", size = 28650, upload-time = "2026-08-30T10:48:30.025Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/d7/e9/1a9fe89d6b482c7b5f8fb6ad55f715043348e1b37f95fc7f7e786be69622/sqlphilosophy-0.3.0.tar.gz", hash = "sha256:e1e466bd804c87a73c5c7a89e05101538300899ac679acac45c86bca4e4adf34", size = 29634, upload-time = "2026-09-08T07:46:44.524Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/2a/d8/343e790bf97fce7ca5e56527f52d22a24353ef248fb2efc2fad36069acb7/sqlphilosophy-0.2.1-py3-none-any.whl", hash = "sha256:9c43ad619e81b269428818dcf57d3edf0ca5c34e2a0008f661c16add94fd05b5", size = 33119, upload-time = "2026-08-30T10:48:28.679Z" },
+    { url = "https://files.pythonhosted.org/packages/5c/46/f30d5e0455ff1c79685235092ad698a4833ffbc112a6185d6cf5ee8b1073/sqlphilosophy-0.3.0-py3-none-any.whl", hash = "sha256:2bb208121d7993bf903db64deda915627780b7644878abc721d7b2348900e2a2", size = 34344, upload-time = "2026-09-08T07:46:43.228Z" },
 ]
 
 [[package]]
