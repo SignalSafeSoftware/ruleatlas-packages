@@ -43,8 +43,8 @@ class PermissionRepository(BaseRepository[ProjectMembership, "RepositoryFactory"
             .where(ProjectMembership.project_id == project_id)
             .order_by(User.display_name)
             .build_select()
-        ).all()
-        return [(cast(User, row[0]), cast(str, row[1])) for row in rows]
+        ).mappings().all()
+        return [(cast(User, row[User.__name__]), cast(str, row[ProjectMembership.role.key])) for row in rows]
 
     def list_project_ids_for_user(self, user_id: str) -> list[str]:
         return [
