@@ -81,3 +81,14 @@ uv run --all-extras pytest
 uv run --all-extras mypy src
 uv run --all-extras ruff check src tests
 ```
+
+## Measured quality evidence
+
+CI runs each package's existing tests with branch coverage against every source file in that package, including unimported files. Packaging-script unit tests have a separate report. All nine XML reports retain repository-relative source roots and feed the required Sonar quality gate; authored workflow files remain in analysis scope. This measures existing coverage without excluding untested production code or introducing a percentage threshold.
+
+Coverage is a pinned tool in the virtual workspace development group, with no member runtime dependency or published API changes. For example, after syncing development tools, run from the repository root:
+
+```sh
+COVERAGE_SOURCE=contracts/src .venv/bin/python -m coverage run -m pytest -q -c contracts/pyproject.toml contracts/tests
+COVERAGE_SOURCE=contracts/src .venv/bin/python -m coverage xml -o coverage-reports/contracts.xml
+```
