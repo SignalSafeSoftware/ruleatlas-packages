@@ -168,7 +168,6 @@ from ruleatlas_persistence.repositories.user_repository import UserRepository
 from ruleatlas_persistence.repositories.user_session_repository import UserSessionRepository
 
 T = TypeVar("T", bound=DeclarativeBase)
-R = TypeVar("R")
 
 
 class RepositoryFactory(SqlPhilosophyRepositoryFactory):
@@ -191,7 +190,7 @@ class RepositoryFactory(SqlPhilosophyRepositoryFactory):
     def create_statement(self, model: type[T]) -> StatementQueryBuilder[T]:
         return SqlAlchemyStatementBuilder(self._session, model)
 
-    def get_repository(self, repo_class: type[R]) -> R:
+    def get_repository[R](self, repo_class: type[R]) -> R:
         cached = self._typed_repos.get(repo_class)
         if cached is not None:
             return cast(R, cached)
