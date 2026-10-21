@@ -620,7 +620,7 @@ class AstQueryRepository:
         return limit
 
     @staticmethod
-    def _document_scope(project_id: str, analysis_version_id: str) -> Select[tuple[AstDocument]]:
+    def _document_scope(project_id: str, analysis_version_id: str) -> Select[AstDocument]:
         return select(AstDocument).where(
             AstDocument.project_id == project_id,
             AstDocument.analysis_version_id == analysis_version_id,

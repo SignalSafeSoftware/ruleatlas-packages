@@ -20,15 +20,15 @@ classifiers = [
 ]
 dependencies = [
   "ruleatlas-contracts>=0.1.0",
-  "sqlalchemy>=2.0.52",
+  "sqlalchemy>=2.1.5",
   "zstandard>=0.25.0,<0.26.0",
   # 0.2.0: RepositoryFactory.repository returns BaseRepositoryProtocol[T, RepositoryFactory]
   # (factory is required on the protocol; ServiceRepository provides .factory/.maybe_factory/.has_factory).
-  "sqlphilosophy>=0.2.1,<0.3.0",
+  "sqlphilosophy>=0.3.0,<0.4.0",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.3.0", "build>=1.6.0", "twine>=7.0.0", "ruff>=0.16.6", "mypy>=2.3.1"]
+dev = ["pytest>=8.3.0", "build>=1.6.1", "twine>=7.0.0", "ruff>=0.16.10", "mypy>=2.4.0"]
 
 [tool.uv.sources]
 ruleatlas-contracts = { workspace = true }

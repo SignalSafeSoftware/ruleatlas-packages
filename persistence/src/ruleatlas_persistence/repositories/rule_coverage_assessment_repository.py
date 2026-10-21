@@ -39,8 +39,8 @@ class RuleCoverageAssessmentRepository(BaseRepository[RuleCoverageAssessment, "R
         if rule_id:
             stmt = stmt.where(Rule.id == rule_id)
         return [
-            (cast(RuleCoverageAssessment, row[0]), cast(Rule, row[1]))
-            for row in self._session.execute(stmt.build_select()).all()
+            (cast(RuleCoverageAssessment, row[RuleCoverageAssessment.__name__]), cast(Rule, row[Rule.__name__]))
+            for row in self._session.execute(stmt.build_select()).mappings().all()
         ]
 
     def count_for_project(self, project_id: str) -> int:
@@ -67,8 +67,8 @@ class RuleCoverageAssessmentRepository(BaseRepository[RuleCoverageAssessment, "R
         if analysis_version_id:
             stmt = stmt.where(Rule.analysis_version_id == analysis_version_id)
         return [
-            (cast(RuleCoverageAssessment, row[0]), cast(Rule, row[1]))
-            for row in self._session.execute(stmt.build_select()).all()
+            (cast(RuleCoverageAssessment, row[RuleCoverageAssessment.__name__]), cast(Rule, row[Rule.__name__]))
+            for row in self._session.execute(stmt.build_select()).mappings().all()
         ]
 
     def get_first_for_project_joined_rules(self, project_id: str) -> tuple[RuleCoverageAssessment, Rule] | None:
