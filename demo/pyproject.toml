@@ -21,12 +21,12 @@ classifiers = [
 # Leaf package: depends on the others so it can seed realistic data; NOTHING depends on it. It is intended
 # to be installed only as a dev/demo extra of apps/api, never in a production image.
 dependencies = [
-  "ruleatlas-contracts>=0.1.0",
-  "ruleatlas-discovery>=0.1.0",
-  "ruleatlas-extraction>=0.1.0",
-  "ruleatlas-claims>=0.1.0",
-  "ruleatlas-ai>=0.1.0",
-  "ruleatlas-exports>=0.1.0",
+  "ruleatlas-contracts>=0.1.1",
+  "ruleatlas-discovery>=0.1.2",
+  "ruleatlas-extraction>=0.1.1",
+  "ruleatlas-claims>=0.1.1",
+  "ruleatlas-ai>=0.1.1",
+  "ruleatlas-exports>=0.1.1",
 ]
 
 [project.optional-dependencies]

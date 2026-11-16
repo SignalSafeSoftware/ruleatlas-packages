@@ -19,8 +19,8 @@ classifiers = [
   "Typing :: Typed",
 ]
 dependencies = [
-  "ruleatlas-contracts>=0.1.0",
-  "ruleatlas-persistence>=0.1.0",
+  "ruleatlas-contracts>=0.1.1",
+  "ruleatlas-persistence>=0.1.1",
   "sqlalchemy>=2.1.6",
 ]
 

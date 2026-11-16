@@ -19,7 +19,7 @@ classifiers = [
   "Typing :: Typed",
 ]
 dependencies = [
-  "ruleatlas-contracts>=0.1.0",
+  "ruleatlas-contracts>=0.1.1",
   "sqlalchemy>=2.1.6",
   "zstandard>=0.25.0,<0.26.0",
   # 0.2.0: RepositoryFactory.repository returns BaseRepositoryProtocol[T, RepositoryFactory]

@@ -1,3 +1,13 @@
+# RuleAtlas packages current state — 2026-11-15
+
+Seven source candidates advance to 0.1.1; ruleatlas-discovery advances from its existing 0.1.1 source to 0.1.2. Remote main baseline is 788a1d5c7f0d6650dccc5e1c46aecb670d9e7b89. Anonymous PyPI lookup returned 404 for all eight distribution names; the existing per-package tag workflow requires PyPI trusted publishers for first publication. Publication is not inferred from this candidate.
+
+The combined candidate reconciles open dependency/action PRs 50, 51, 52, 53, 54, 55, 57 and 58. Their prior package/import checks passed but Dependabot Sonar lacked credentials; the trusted combined source must pass that same quality gate before release. Domain source and DAG ownership remain unchanged.
+
+Build each package independently from the frozen workspace lock, preserve hash verification and run the full package/DAG/script matrix. After upstream publication, dependent hosts must resolve actual registry artifacts and regenerate locks. No production application deployment is authorized by this library release.
+
+## Historical evidence
+
 # RuleAtlas packages current-state summary
 
 **Authority date:** 2026-07-28  
