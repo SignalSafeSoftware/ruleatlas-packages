@@ -6,6 +6,10 @@ The combined candidate reconciles open dependency/action PRs 50, 51, 52, 53, 54,
 
 Build each package independently from the frozen workspace lock, preserve hash verification and run the full package/DAG/script matrix. After upstream publication, dependent hosts must resolve actual registry artifacts and regenerate locks. No production application deployment is authorized by this library release.
 
+## Publisher recovery
+
+The merged combined source passed trusted package CI and Sonar. The first contracts-v0.1.1 release attempt failed before publishing because the pinned pypa action commit was unavailable. The existing publisher now uses the verified immutable commit already exercised by the ServicePhilosophy publisher. A manual retry accepts only an existing package/version tag, checks out that same tag for validation and publication, and retains all package, hash and DAG gates. It does not move the tag or create a new publisher. Registry readback is required before retry and remains the publication authority.
+
 ## Historical evidence
 
 # RuleAtlas packages current-state summary

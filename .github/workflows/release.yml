@@ -9,6 +9,12 @@ name: release
 # that its source version is 0.1.0.
 
 on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing approved package version tag to retry without moving it
+        required: true
+        type: string
   push:
     tags:
       - "contracts-v*"
@@ -20,6 +26,12 @@ on:
       - "ai-v*"
       - "demo-v*"
 
+permissions:
+  contents: read
+
+env:
+  RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
+
 jobs:
   validate:
     runs-on: ubuntu-latest
@@ -28,6 +40,8 @@ jobs:
       version: ${{ steps.tag.outputs.version }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.release_tag && format('refs/tags/{0}', inputs.release_tag) || github.ref }}
       - name: Install uv
         uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
@@ -36,7 +50,9 @@ jobs:
         run: python -m unittest scripts.test_verify_release_tag scripts.test_hash_local_wheels
       - name: Validate release tag
         id: tag
-        run: python scripts/verify-release-tag.py "$GITHUB_REF_NAME" --github-output "$GITHUB_OUTPUT"
+        run: |
+          python scripts/verify-release-tag.py "$RELEASE_TAG" --github-output "$GITHUB_OUTPUT"
+          test "$(git rev-parse HEAD)" = "$(git rev-parse "refs/tags/$RELEASE_TAG^{commit}")"
       - name: Sync workspace
         run: |
           uv venv --seed
@@ -70,9 +86,12 @@ jobs:
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
+      contents: read
       id-token: write  # required for PyPI trusted publishing (OIDC)
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.release_tag && format('refs/tags/{0}', inputs.release_tag) || github.ref }}
       - name: Install uv
         uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
@@ -81,6 +100,6 @@ jobs:
         working-directory: ${{ needs.validate.outputs.package }}
         run: uv build --out-dir "$PWD/dist"
       - name: Publish ${{ needs.validate.outputs.package }} to PyPI
-        uses: pypa/gh-action-pypi-publish@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # release/v1
+        uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # release/v1
         with:
           packages-dir: ${{ needs.validate.outputs.package }}/dist
