@@ -1,5 +1,10 @@
 # Changelog
 
+## Publisher maintenance — 2026-11-15
+
+- Replace an unavailable publisher action pin with a verified immutable upstream commit.
+- Permit a fully gated retry of an existing immutable package tag; retain exact-tag version validation and all workspace checks. No package runtime or version changes.
+
 ## Coordinated 0.1.1 / discovery 0.1.2 — 2026-11-15
 
 - Reconcile the eight reviewed dependency/action updates and regenerate the real uv workspace lock.
