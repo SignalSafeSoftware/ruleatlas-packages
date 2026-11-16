@@ -23,7 +23,7 @@ dependencies = [
   "ruleatlas-discovery>=0.1.2",
   "ruleatlas-persistence>=0.1.1",
   "sqlalchemy>=2.1.6",
-  "pydantic>=2.14.1",
+  "pydantic>=2.14.3",
   "gherkin-official>=42.0.1",
 ]
 
