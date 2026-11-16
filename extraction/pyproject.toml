@@ -19,16 +19,16 @@ classifiers = [
   "Typing :: Typed",
 ]
 dependencies = [
-  "ruleatlas-contracts>=0.1.0",
-  "ruleatlas-discovery>=0.1.0",
-  "ruleatlas-persistence>=0.1.0",
-  "sqlalchemy>=2.1.5",
-  "pydantic>=2.13.5",
+  "ruleatlas-contracts>=0.1.1",
+  "ruleatlas-discovery>=0.1.2",
+  "ruleatlas-persistence>=0.1.1",
+  "sqlalchemy>=2.1.6",
+  "pydantic>=2.14.1",
   "gherkin-official>=42.0.1",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.3.0", "build>=1.6.1", "twine>=7.0.0", "ruff>=0.16.10", "mypy>=2.4.0"]
+dev = ["pytest>=8.3.0", "build>=1.6.1", "twine>=7.0.0", "ruff>=0.17.2", "mypy>=2.4.0"]
 
 # Local (in-repo) resolution of the sibling packages for uv-based development.
 [tool.uv.sources]

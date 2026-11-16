@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from importlib.metadata import version
+
 import ruleatlas_contracts
 
 
 def test_package_imports_and_has_version() -> None:
-    assert ruleatlas_contracts.__version__ == "0.1.0"
+    assert ruleatlas_contracts.__version__ == version("ruleatlas-contracts")
