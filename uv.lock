@@ -1213,7 +1213,7 @@ requires-dist = [
     { name = "build", marker = "extra == 'dev'", specifier = ">=1.6.1" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=2.4.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3.0" },
-    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.16.10" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.17.2" },
     { name = "ruleatlas-contracts", editable = "contracts" },
     { name = "ruleatlas-persistence", editable = "persistence" },
     { name = "sqlalchemy", specifier = ">=2.1.6" },
@@ -1239,7 +1239,7 @@ requires-dist = [
     { name = "build", marker = "extra == 'dev'", specifier = ">=1.6.1" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=2.4.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3.0" },
-    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.16.10" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.17.2" },
     { name = "twine", marker = "extra == 'dev'", specifier = ">=7.0.0" },
 ]
 provides-extras = ["dev"]
@@ -1270,7 +1270,7 @@ requires-dist = [
     { name = "build", marker = "extra == 'dev'", specifier = ">=1.6.1" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=2.4.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3.0" },
-    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.16.10" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.17.2" },
     { name = "ruleatlas-ai", editable = "ai" },
     { name = "ruleatlas-claims", editable = "claims" },
     { name = "ruleatlas-contracts", editable = "contracts" },
@@ -1302,7 +1302,7 @@ requires-dist = [
     { name = "build", marker = "extra == 'dev'", specifier = ">=1.6.1" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=2.4.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3.0" },
-    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.16.10" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.17.2" },
     { name = "ruleatlas-contracts", editable = "contracts" },
     { name = "twine", marker = "extra == 'dev'", specifier = ">=7.0.0" },
 ]
@@ -1329,7 +1329,7 @@ requires-dist = [
     { name = "build", marker = "extra == 'dev'", specifier = ">=1.6.1" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=2.4.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3.0" },
-    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.16.10" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.17.2" },
     { name = "ruleatlas-contracts", editable = "contracts" },
     { name = "twine", marker = "extra == 'dev'", specifier = ">=7.0.0" },
 ]
@@ -1396,7 +1396,7 @@ requires-dist = [
     { name = "build", marker = "extra == 'dev'", specifier = ">=1.6.1" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=2.4.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3.0" },
-    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.16.10" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.17.2" },
     { name = "ruleatlas-contracts", editable = "contracts" },
     { name = "sqlalchemy", specifier = ">=2.1.6" },
     { name = "sqlphilosophy", specifier = ">=0.3.0,<0.4.0" },
