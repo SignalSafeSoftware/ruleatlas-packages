@@ -8,7 +8,7 @@ Build each package independently from the frozen workspace lock, preserve hash v
 
 ## Publisher recovery
 
-The merged combined source passed trusted package CI and Sonar. The first contracts-v0.1.1 release attempt failed before publishing because the pinned pypa action commit was unavailable. The existing publisher now uses the verified immutable commit already exercised by the ServicePhilosophy publisher. A manual retry accepts only an existing package/version tag, checks out that same tag for validation and publication, and retains all package, hash and DAG gates. It does not move the tag or create a new publisher. Registry readback is required before retry and remains the publication authority.
+The merged combined source passed trusted package CI and Sonar. The first contracts-v0.1.1 release attempt failed before publishing because the pinned pypa action commit was unavailable. The initial verified v1.14.0 pin reached the upload gate but its older metadata validator rejected the current wheel Metadata-Version 2.5. The publisher now pins official v1.14.3, whose hash-checked runtime uses Twine 7.0.0 and packaging 26.2, matching the successful local distribution validator. Artifact checks remain enabled. A manual retry accepts only an existing package/version tag, checks out that same tag for validation and publication, and retains all package, hash and DAG gates. It does not move the tag or create a new publisher. Registry readback is required before retry and remains the publication authority.
 
 ## Historical evidence
 
